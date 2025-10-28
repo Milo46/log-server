@@ -1,72 +1,74 @@
 # Log Server
 
-A lightweight HTTP-based **schema-driven log sink** service that allows users to define custom log schemas and then receive JSON log entries validated against those schemas, storing them in a persistent database, deployable with Docker Compose.
+A lightweight HTTP server built with **Rust** and **Axum** framework, featuring Docker containerization and PostgreSQL database integration. Currently implements basic REST endpoints with plans for schema-driven logging capabilities.
 
-## 🚀 Features
+## 🚀 Current Features
 
-- **Schema-driven logging**: Define custom JSON schemas for different log types
-- **JSON Schema validation**: All log entries validated against JSON Schema Draft 7
-- **PostgreSQL storage**: Efficient JSONB storage with indexing
-- **RESTful API**: Clean HTTP API with comprehensive OpenAPI documentation
-- **Docker deployment**: Ready-to-deploy with Docker Compose
-- **Schema versioning**: Support for schema evolution with semantic versioning
+- **Rust/Axum HTTP Server**: Fast, async web server with JSON responses
+- **Docker Containerization**: Production and development Docker environments
+- **PostgreSQL Integration**: Database setup with Docker Compose
+- **Development Tools**: Hot-reloading, debugging, and live development setup
+- **TODO Tracking**: Custom scripts for tracking code annotations
+- **Multi-stage Builds**: Optimized production Docker images
 
 ## 📋 Quick Start
 
-### 1. Register a Log Schema
+### 1. Using Docker Compose (Recommended)
 
 ```bash
-curl -X POST http://localhost:8080/schemas \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "web-server-logs",
-    "version": "1.0.0",
-    "description": "Schema for web server access logs",
-    "schema": {
-      "type": "object",
-      "required": ["timestamp", "level", "message", "request_id"],
-      "properties": {
-        "timestamp": {"type": "string", "format": "date-time"},
-        "level": {"type": "string", "enum": ["DEBUG", "INFO", "WARN", "ERROR"]},
-        "message": {"type": "string", "minLength": 1},
-        "request_id": {"type": "string", "pattern": "^[a-zA-Z0-9-]+$"}
-      }
-    }
-  }'
+# Clone the repository
+git clone <your-repo-url>
+cd log-server
+
+# Copy and configure environment
+cp .env.example .env
+# Edit .env with your database password
+
+# Start production services
+docker-compose up -d
+
+# Test the server
+curl http://localhost:8080/
+# Returns: {"message":"Hello from /"}
+
+curl http://localhost:8080/user/123
+# Returns: {"message":"Hello user with id 123"}
 ```
 
-### 2. Send Log Entries
+### 2. Development Setup
 
 ```bash
-curl -X POST http://localhost:8080/logs/web-server-logs \
-  -H "Content-Type: application/json" \
-  -d '{
-    "timestamp": "2025-10-26T10:00:00Z",
-    "level": "INFO",
-    "message": "User login successful",
-    "request_id": "req-12345"
-  }'
+# Start development environment with hot-reloading
+docker-compose -f docker-compose.dev.yml up -d
+
+# View logs with live updates
+docker-compose -f docker-compose.dev.yml logs -f log-server-dev
+
+# Development server runs on http://localhost:8081
+curl http://localhost:8081/
 ```
 
-### 3. Retrieve Logs
+### 3. Local Development (without Docker)
 
 ```bash
-# Get all logs
-curl "http://localhost:8080/logs"
+# Install Rust if not already installed
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-# Get logs for a specific schema
-curl "http://localhost:8080/logs?schema_id=web-server-logs"
+# Run the server locally
+cargo run
+
+# Server runs on http://localhost:8080
 ```
 
 ## 🏗️ Architecture
 
-```
+```text
 ┌─────────────────┐    HTTP/JSON    ┌──────────────────┐
-│   Client Apps   │ ──────────────► │   Log Server     │
-│                 │                 │   (Rust/Axum)    │
+│   Clients       │ ──────────────► │   Log Server     │
+│   (curl, apps)  │                 │   (Rust/Axum)    │
 └─────────────────┘                 └──────────────────┘
                                              │
-                                             │ SQL
+                                             │ (planned)
                                              ▼
                                     ┌──────────────────┐
                                     │   PostgreSQL     │
@@ -74,174 +76,299 @@ curl "http://localhost:8080/logs?schema_id=web-server-logs"
                                     └──────────────────┘
 ```
 
-### Components
+### Current Components
 
-- **Log Server**: Rust-based HTTP server using Axum framework
-- **Database**: PostgreSQL with JSONB support for flexible log storage
-- **Validation**: JSON Schema Draft 7 validation for all log entries
-- **API**: RESTful endpoints with comprehensive error handling
+- **HTTP Server**: Rust-based async server using Axum framework
+- **Containerization**: Docker and Docker Compose setup
+- **Database**: PostgreSQL 16 Alpine with initialization scripts
+- **Development Tools**: Hot-reloading with cargo-watch
 
-## 📚 API Endpoints
+### Planned Components
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST   | `/schemas` | Register a new log schema |
-| GET    | `/schemas` | Retrieve registered schemas |
-| GET    | `/schemas/{id}` | Retrieve a specific schema |
-| POST   | `/logs/{schema_id}` | Create a new log entry (validated against schema) |
-| GET    | `/logs` | Retrieve log entries with filtering |
-| GET    | `/health` | Health check endpoint |
+- **Schema Validation**: JSON Schema validation for log entries
+- **Database Integration**: Active PostgreSQL connection and models
+- **RESTful API**: Complete CRUD operations for logs and schemas
+
+## 📚 Current API Endpoints
+
+| Method | Endpoint | Description | Status |
+|--------|----------|-------------|--------|
+| GET    | `/` | Root endpoint returning welcome message | ✅ Implemented |
+| GET    | `/user/{id}` | Get user info by ID | ✅ Implemented |
+
+### Planned API Endpoints
+
+| Method | Endpoint | Description | Status |
+|--------|----------|-------------|--------|
+| POST   | `/schemas` | Register a new log schema | 🚧 Planned |
+| GET    | `/schemas` | Retrieve registered schemas | 🚧 Planned | 
+| POST   | `/logs/{schema_id}` | Create log entry | 🚧 Planned |
+| GET    | `/logs` | Retrieve log entries | 🚧 Planned |
+| GET    | `/health` | Health check endpoint | 🚧 Planned |
 
 ## 🚀 Deployment
 
 ### Using Docker Compose
 
-1. Clone the repository
-2. Run with Docker Compose:
+#### Production Deployment
 
 ```bash
+# Clone the repository
+git clone <your-repo-url>
+cd log-server
+
+# Configure environment
+cp .env.example .env
+# Edit .env and set POSTGRES_PASSWORD
+
+# Start production services
 docker-compose up -d
+
+# Check status
+docker-compose ps
+
+# View logs
+docker-compose logs -f
 ```
 
-This will start:
-- Log server on port 8080
-- PostgreSQL database with persistent storage
+#### Development Deployment
+
+```bash
+# Start development environment with hot-reloading
+docker-compose -f docker-compose.dev.yml up -d
+
+# View development logs
+docker-compose -f docker-compose.dev.yml logs -f log-server-dev
+
+# Stop development environment
+docker-compose -f docker-compose.dev.yml down
+```
+
+#### Available Services
+
+| Service | Port | Environment | Description |
+|---------|------|-------------|-------------|
+| **log-server** | 8080 | Production | Main application server |
+| **postgres** | 5432 | Production | PostgreSQL database |
+| **log-server-dev** | 8081 | Development | Dev server with hot-reload |
+| **postgres** | 5433 | Development | Dev PostgreSQL database |
+
+#### Docker Commands
+
+```bash
+# Rebuild images
+docker-compose build --no-cache
+
+# View service status
+docker-compose ps
+
+# Follow logs
+docker-compose logs -f [service-name]
+
+# Execute shell in container
+docker-compose exec log-server bash
+docker-compose exec postgres psql -U loguser -d logserver
+
+# Stop and remove containers
+docker-compose down
+
+# Stop and remove volumes (⚠️ data loss)
+docker-compose down -v
+```
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgres://user:pass@localhost/logs` |
-| `SERVER_PORT` | HTTP server port | `8080` |
-| `LOG_LEVEL` | Application log level | `info` |
+Create a `.env` file from the template:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `POSTGRES_PASSWORD` | PostgreSQL database password | `logpass123` | ✅ |
+| `DATABASE_URL` | Full PostgreSQL connection string | Auto-generated | ❌ |
+| `RUST_LOG` | Application log level | `info` | ❌ |
+| `RUST_BACKTRACE` | Show backtraces on errors | `0` | ❌ |
 
 ## 📖 Documentation
 
-- **[Software Requirements Document](docs/SRD.md)** - Complete technical specification
-- **[API Documentation](docs/openapi.yaml)** - OpenAPI 3.0 specification
-- **[Documentation Guide](docs/README.md)** - How to use and maintain the docs
+- **[Software Requirements Document](docs/SRD.md)** - Project specifications and requirements
+- **[API Documentation](docs/openapi.yaml)** - OpenAPI specification (planned)
+- **[Documentation Guide](docs/README.md)** - Documentation guidelines
+- **[Scripts Guide](scripts/README.md)** - Utility scripts documentation
 
-### Interactive API Documentation
+### TODO Tracking
 
-View the API documentation:
-1. Upload `docs/openapi.yaml` to [Swagger Editor](https://editor.swagger.io/)
-2. Or run locally: `npx swagger-ui-serve docs/openapi.yaml`
+The project includes custom TODO tracking scripts:
+
+```bash
+# Find all TODOs in the repository
+./scripts/todo-scanner.sh
+
+# Generate JSON report
+./scripts/todo-advanced.sh --format json
+
+# Generate CSV report
+./scripts/todo-advanced.sh --format csv --output reports/todos.csv
+```
 
 ## 🛠️ Development
 
 ### Prerequisites
 
-- Rust 1.70+
-- PostgreSQL 15+
-- Docker & Docker Compose (for deployment)
+- **Rust 1.82+** - Latest stable Rust toolchain
+- **Docker & Docker Compose** - For containerized development
+- **Git** - Version control
 
-### Local Development
+### Local Development Setup
 
-1. Set up the database:
+#### Option 1: Docker Development (Recommended)
+
 ```bash
-# Start PostgreSQL with Docker
-docker run -d --name logs-db -p 5432:5432 -e POSTGRES_PASSWORD=password postgres:15
+# Start development environment with hot-reloading
+docker-compose -f docker-compose.dev.yml up -d
+
+# View development logs
+docker-compose -f docker-compose.dev.yml logs -f log-server-dev
+
+# Access development server
+curl http://localhost:8081/
+
+# Stop development environment
+docker-compose -f docker-compose.dev.yml down
 ```
 
-2. Run the server:
+#### Option 2: Native Development
+
 ```bash
+# Install Rust if not already installed
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Clone and run
+git clone <your-repo-url>
+cd log-server
 cargo run
+
+# Server runs on http://localhost:8080
 ```
 
-3. Run tests:
+### Development Features
+
+- **🔥 Hot Reloading** - Code changes automatically rebuild and restart
+- **🐛 Debug Mode** - Enhanced logging and error traces
+- **📊 Database Integration** - PostgreSQL dev database on port 5433
+- **🔧 Development Tools** - cargo-watch, debugging tools included
+
+### Project Structure
+
+```text
+log-server/
+├── src/
+│   └── main.rs              # Main application entry point
+├── docker/
+│   └── db/
+│       └── init.sql         # Database initialization script
+├── scripts/
+│   ├── todo-scanner.sh      # Basic TODO scanner
+│   ├── todo-advanced.sh     # Advanced TODO scanner with formats
+│   └── README.md           # Scripts documentation
+├── docs/
+│   ├── README.md           # Documentation guidelines
+│   ├── SRD.md              # Software Requirements Document
+│   └── openapi.yaml        # API specification (planned)
+├── Dockerfile              # Production container build
+├── Dockerfile.dev          # Development container build
+├── docker-compose.yml      # Production Docker Compose
+├── docker-compose.dev.yml  # Development Docker Compose
+└── .env.example           # Environment template
+```
+
+## 🎯 Current Status & Roadmap
+
+### ✅ Implemented
+
+- [x] **Basic HTTP Server** - Axum-based async web server
+- [x] **Docker Containerization** - Production and development containers
+- [x] **PostgreSQL Integration** - Database setup and configuration
+- [x] **Development Workflow** - Hot-reloading development environment
+- [x] **TODO Tracking** - Custom annotation scanning scripts
+- [x] **Documentation** - Comprehensive setup and usage guides
+
+### 🚧 In Progress
+
+- [ ] **Database Models** - Rust structs and database schema
+- [ ] **Health Endpoint** - Server and database health checks
+- [ ] **Error Handling** - Proper error responses and logging
+
+### 📋 Planned Features
+
+- [ ] **Schema Management API** - CRUD operations for log schemas
+- [ ] **Log Ingestion API** - Validated log entry creation
+- [ ] **Query API** - Log filtering and search capabilities
+- [ ] **JSON Schema Validation** - Schema-driven log validation
+- [ ] **Web UI** - Browser-based management interface
+- [ ] **Authentication** - API key management
+- [ ] **Monitoring** - Metrics and observability
+
+## 🧪 Testing
+
 ```bash
+# Run tests
 cargo test
-```
 
-## 🎯 Use Cases
+# Run with coverage (requires cargo-tarpaulin)
+cargo tarpaulin --out html
 
-### Development Environment Logging
-- Multiple services logging to a centralized endpoint
-- Different log schemas for different service types
-- Easy log aggregation and filtering
+# Test Docker builds
+docker build -t log-server .
+docker build -f Dockerfile.dev -t log-server:dev .
 
-### Microservices Architecture
-- Each service defines its own log schema
-- Centralized log storage with schema validation
-- Consistent log structure across services
-
-### Application Monitoring
-- Structured error tracking with custom schemas
-- Performance metrics logging
-- User activity tracking
-
-## 📋 Schema Examples
-
-### Web Server Logs
-```json
-{
-  "name": "web-server-logs",
-  "version": "1.0.0",
-  "schema": {
-    "type": "object",
-    "required": ["timestamp", "method", "path", "status", "response_time"],
-    "properties": {
-      "timestamp": {"type": "string", "format": "date-time"},
-      "method": {"type": "string", "enum": ["GET", "POST", "PUT", "DELETE"]},
-      "path": {"type": "string"},
-      "status": {"type": "integer", "minimum": 100, "maximum": 599},
-      "response_time": {"type": "number", "minimum": 0},
-      "user_id": {"type": "string"}
-    }
-  }
-}
-```
-
-### Error Tracking
-```json
-{
-  "name": "error-tracking",
-  "version": "1.0.0",
-  "schema": {
-    "type": "object",
-    "required": ["timestamp", "error_type", "message", "stack_trace"],
-    "properties": {
-      "timestamp": {"type": "string", "format": "date-time"},
-      "error_type": {"type": "string"},
-      "message": {"type": "string"},
-      "stack_trace": {"type": "string"},
-      "context": {"type": "object"}
-    }
-  }
-}
+# Test endpoints
+curl http://localhost:8080/
+curl http://localhost:8080/user/123
 ```
 
 ## 🔧 Technology Stack
 
 - **Backend**: Rust with Axum web framework
-- **Database**: PostgreSQL 15+ with JSONB support
-- **Validation**: JSON Schema Draft 7
-- **Deployment**: Docker & Docker Compose
-- **API Documentation**: OpenAPI 3.0
-
-## 📈 Roadmap
-
-- [ ] Authentication & authorization (JWT, API keys)
-- [ ] Advanced querying (full-text search, aggregations)
-- [ ] Real-time log streaming (WebSocket support)
-- [ ] Log retention policies and archiving
-- [ ] Prometheus metrics endpoint
-- [ ] Kubernetes deployment manifests
+- **Database**: PostgreSQL 16 Alpine with JSONB support
+- **Containerization**: Docker with multi-stage builds
+- **Development**: cargo-watch for hot reloading
+- **Future**: JSON Schema validation, OpenAPI documentation
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
 3. Make your changes
-4. Add tests
-5. Submit a pull request
+4. Add/update tests as needed
+5. Run `cargo fmt` and `cargo clippy`
+6. Update documentation if needed
+7. Commit your changes: `git commit -m 'Add amazing feature'`
+8. Push to the branch: `git push origin feature/amazing-feature`
+9. Open a Pull Request
+
+### Development Guidelines
+
+- **Code Style**: Follow Rust conventions, use `cargo fmt`
+- **Linting**: Ensure `cargo clippy` passes without warnings
+- **Testing**: Add tests for new functionality
+- **Documentation**: Update docs for API/behavior changes
+- **TODOs**: Use the format `@{type}(author): description` for tracking
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙋‍♂️ Support
+## � Support
 
-- Check the [documentation](docs/) for detailed information
-- Review the [OpenAPI specification](docs/openapi.yaml) for API details
-- Open an issue for bug reports or feature requests
+For questions, issues, or contributions:
+
+- **Issues**: [GitHub Issues](link-to-your-repo/issues)
+- **Documentation**: Check the `docs/` directory
+- **Scripts**: See `scripts/README.md` for utility documentation
+
+---
+
+Built with ❤️ using **Rust**, **Axum**, and **Docker**

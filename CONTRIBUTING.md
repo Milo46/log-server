@@ -1,97 +1,133 @@
 # Contributing to Log Server
 
-Thank you for your interest in contributing to the Log Server project! This document outlines our development processes, branching strategy, and guidelines for contributors.
+Thank you for your interest in contributing to the Log Server project! This document outlines our development processes, coding standards, and guidelines for contributors.
 
-## 🌳 Git Branching Strategy
+## 🚀 Quick Start for Contributors
 
-We follow a **Git Flow** branching model with the following structure:
+### Prerequisites
 
-### Main Branches
+- **Rust 1.82+** - [Install Rust](https://rustup.rs/)
+- **Docker & Docker Compose** - [Install Docker](https://docs.docker.com/get-docker/)
+- **Git** - Version control
 
-- **`main`** - Production-ready code
-  - Always deployable
-  - Protected branch requiring pull request reviews
-  - Automatically tagged for releases
-  - Direct pushes are not allowed
-
-- **`develop`** - Integration branch for features
-  - Latest development changes
-  - Base branch for feature development
-  - Merged into `main` for releases
-
-### Supporting Branches
-
-- **Feature branches** - `feature/issue-number-short-description`
-  - Branched from: `develop`
-  - Merged back to: `develop`
-  - Naming: `feature/123-add-rate-limiting`
-  - Deleted after merge
-
-- **Release branches** - `release/version-number`
-  - Branched from: `develop`
-  - Merged to: `main` and `develop`
-  - Naming: `release/1.2.0`
-  - For final release preparations
-
-- **Hotfix branches** - `hotfix/issue-number-description`
-  - Branched from: `main`
-  - Merged to: `main` and `develop`
-  - Naming: `hotfix/456-fix-memory-leak`
-  - For critical production fixes
-
-- **Documentation branches** - `docs/description`
-  - Branched from: `develop`
-  - Merged back to: `develop`
-  - Naming: `docs/update-api-spec`
-  - For documentation-only changes
-
-## 🔄 Development Workflow
-
-### 1. Setting Up Your Development Environment
+### Setting Up Development Environment
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/log-server.git
+# Fork and clone the repository
+git clone https://github.com/YOUR-USERNAME/log-server.git
 cd log-server
 
-# Add upstream remote (for forks)
-git remote add upstream https://github.com/your-org/log-server.git
+# Set up environment
+cp .env.example .env
+# Edit .env with your preferences
 
-# Switch to develop branch
-git checkout develop
-git pull origin develop
+# Start development environment
+docker-compose -f docker-compose.dev.yml up -d
+
+# Verify setup
+curl http://localhost:8081/
 ```
 
-### 2. Creating a Feature Branch
+## 🌳 Development Workflow
+
+### 1. Create a Feature Branch
 
 ```bash
-# Create and switch to feature branch
-git checkout -b feature/123-add-authentication develop
+# Create and switch to a new branch
+git checkout -b feature/your-feature-name
 
-# Push the branch to your fork
-git push -u origin feature/123-add-authentication
+# Or for bug fixes
+git checkout -b fix/bug-description
 ```
 
-### 3. Development Process
+### 2. Make Your Changes
 
-1. **Make your changes** in small, logical commits
-2. **Write tests** for new functionality
-3. **Update documentation** as needed
-4. **Follow coding standards** (see below)
-5. **Keep commits focused** and atomic
+- Follow the coding standards (see below)
+- Add tests for new functionality
+- Update documentation as needed
+- Use meaningful commit messages
+
+### 3. Test Your Changes
 
 ```bash
-# Make commits with descriptive messages
-git add .
-git commit -m "Add JWT authentication middleware
+# Run tests
+cargo test
 
-- Implement JWT token validation
-- Add authentication error handling
-- Update API documentation for auth endpoints
-- Add tests for auth middleware"
+# Check formatting
+cargo fmt --check
 
-# Push changes regularly
-git push origin feature/123-add-authentication
+# Run linting
+cargo clippy -- -D warnings
+
+# Test Docker builds
+docker build -t log-server .
+```
+
+### 4. Submit a Pull Request
+
+- Push your branch to your fork
+- Create a pull request against the main repository
+- Provide a clear description of your changes
+- Reference any related issues
+
+## � Coding Standards
+
+### Rust Code Style
+
+```bash
+# Format code before committing
+cargo fmt
+
+# Check for common mistakes
+cargo clippy -- -D warnings
+
+# Run tests
+cargo test
+```
+
+### Code Organization
+
+- **Keep functions small** and focused on a single responsibility
+- **Use descriptive names** for variables, functions, and modules
+- **Add documentation** for public APIs using `///` comments
+- **Handle errors explicitly** - avoid `.unwrap()` in production code
+- **Use type safety** - leverage Rust's type system for correctness
+
+### Example Code Structure
+
+```rust
+/// Handles user authentication and returns a JWT token
+/// 
+/// # Arguments
+/// * `credentials` - User login credentials
+/// 
+/// # Returns
+/// * `Result<String, AuthError>` - JWT token on success, error on failure
+pub async fn authenticate_user(
+    credentials: UserCredentials,
+) -> Result<String, AuthError> {
+    // Implementation here
+}
+```
+
+### TODO Annotations
+
+Use the project's TODO format for tracking work:
+
+```rust
+// @{todo}(your-name): Implement rate limiting for this endpoint
+// @{fix}(your-name): Handle edge case when user_id is empty
+// @{hack}(your-name): Temporary solution, needs proper error handling
+```
+
+Find TODOs using the project scripts:
+
+```bash
+# Scan for TODOs
+./scripts/todo-scanner.sh
+
+# Generate reports
+./scripts/todo-advanced.sh --format json
 ```
 
 ### 4. Staying Up to Date
