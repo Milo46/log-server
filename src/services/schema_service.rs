@@ -1,0 +1,129 @@
+use std::sync::Arc;
+use crate::models::Schema;
+use crate::repositories::schema_repository::{SchemaRepository, SchemaRepositoryTrait};
+use anyhow::{Result, anyhow};
+use chrono::Utc;
+use serde_json::Value;
+use uuid::Uuid;
+
+#[derive(Clone)]
+pub struct SchemaService {
+    repository: Arc<SchemaRepository>,
+}
+
+impl SchemaService {
+    pub fn new(repository: Arc<SchemaRepository>) -> Self {
+        Self { repository }
+    }
+
+    pub async fn get_all_schemas(&self) -> Result<Vec<Schema>> {
+        self.repository.get_all().await
+    }
+
+    pub async fn get_schema_by_id(&self, id: &str) -> Result<Option<Schema>> {
+        self.repository.get_by_id(id).await
+    }
+
+    pub async fn create_schema(
+        &self,
+        name: String,
+        version: String,
+        description: Option<String>,
+        schema_definition: Value,
+    ) -> Result<Schema> {
+        self.validate_schema_definition(&schema_definition)?;
+        
+        let all_schemas = self.repository.get_all().await?;
+        if all_schemas.iter().any(|s| s.name == name && s.version == version) {
+            return Err(anyhow!("Schema with name '{}' and version '{}' already exists", name, version));
+        }
+
+        let now = Utc::now();
+        let schema = Schema {
+            id: Uuid::new_v4().to_string(),
+            name,
+            version,
+            description,
+            schema_definition,
+            created_at: now,
+            updated_at: now,
+        };
+
+        self.repository.create(&schema).await
+    }
+
+    pub async fn update_schema(
+        &self,
+        id: &str,
+        name: String,
+        version: String,
+        description: Option<String>,
+        schema_definition: Value,
+    ) -> Result<Option<Schema>> {
+        self.validate_schema_definition(&schema_definition)?;
+
+        let existing_schema = self.repository.get_by_id(id).await?;
+        if existing_schema.is_none() {
+            return Ok(None);
+        }
+
+        let updated_schema = Schema {
+            id: id.to_string(),
+            name,
+            version,
+            description,
+            schema_definition,
+            created_at: existing_schema.unwrap().created_at, // keep original creation time
+            updated_at: Utc::now(),
+        };
+
+        self.repository.update(id, &updated_schema).await
+    }
+
+    pub async fn delete_schema(&self, id: &str) -> Result<bool> {
+        self.repository.delete(id).await
+    }
+
+    // Business logic: validate schema definition against JSON Schema meta-schema
+    fn validate_schema_definition(&self, schema_definition: &Value) -> Result<()> {
+        if !schema_definition.is_object() {
+            return Err(anyhow!("Schema definition must be a JSON object"));
+        }
+
+        match jsonschema::JSONSchema::compile(schema_definition) {
+            Ok(_) => {
+                Ok(())
+            },
+            Err(e) => {
+                Err(anyhow!("Invalid JSON Schema: {}", e))
+            }
+        }
+
+        /*
+        use serde_json::json;
+        
+        // JSON Schema Draft 7 meta-schema (simplified - in production you'd load the full one)
+        let meta_schema = json!({
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "properties": {
+                "type": {"type": "string"},
+                "properties": {"type": "object"},
+                "required": {"type": "array"},
+                "additionalProperties": {"type": "boolean"}
+            }
+        });
+        
+        let meta_validator = jsonschema::JSONSchema::compile(&meta_schema)
+            .map_err(|e| anyhow!("Failed to compile meta-schema: {}", e))?;
+            
+        if let Err(errors) = meta_validator.validate(schema_definition) {
+            let error_messages: Vec<String> = errors
+                .map(|error| format!("Meta-schema validation error: {}", error))
+                .collect();
+            return Err(anyhow!("Schema does not conform to JSON Schema Draft 7: {}", 
+                             error_messages.join("; ")));
+        }
+        */
+    }
+}
