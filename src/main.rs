@@ -21,7 +21,7 @@ use handlers::{
     get_schemas, get_schema_by_id, create_schema, update_schema, delete_schema,
     get_logs, get_log_by_id, create_log, delete_log,
 };
-use axum::{response::Json, http::StatusCode};
+use axum::{response::Json, http::StatusCode, extract::Path};
 use serde_json::json;
 use chrono;
 
@@ -77,13 +77,13 @@ async fn main() -> anyhow::Result<()> {
         .route("/health", get(health_check))
         .route("/schemas", get(get_schemas))
         .route("/schemas", post(create_schema))
-        .route("/schemas/{id}", get(get_schema_by_id))
-        .route("/schemas/{id}", put(update_schema))
-        .route("/schemas/{id}", delete(delete_schema))
+        .route("/schemas/:id", get(get_schema_by_id))
+        .route("/schemas/:id", put(update_schema))
+        .route("/schemas/:id", delete(delete_schema))
         .route("/logs", post(create_log))
-        .route("/logs/{id}", get(get_log_by_id))
-        .route("/logs/{id}", delete(delete_log))
-        .route("/logs/schema/{schema_id}", get(get_logs))
+        .route("/logs/schema/:schema_id", get(get_logs))
+        .route("/logs/:id", get(get_log_by_id))
+        .route("/logs/:id", delete(delete_log))
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
@@ -101,10 +101,10 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("   GET    /schemas/:id          - Get schema by ID");
     tracing::info!("   PUT    /schemas/:id          - Update schema");
     tracing::info!("   DELETE /schemas/:id          - Delete schema");
-    tracing::info!("   POST   /logs                 - Create new log entry");
-    tracing::info!("   GET    /logs/:id             - Get log by ID");
-    tracing::info!("   DELETE /logs/:id             - Delete log");
+    tracing::info!("   POST   /logs                      - Create new log entry");
     tracing::info!("   GET    /logs/schema/:schema_id - Get logs by schema ID");
+    tracing::info!("   GET    /logs/:id               - Get log by ID");
+    tracing::info!("   DELETE /logs/:id               - Delete log");
 
     let listener = TcpListener::bind("0.0.0.0:8080").await.unwrap();
     axum::serve(listener, app).await.unwrap();
