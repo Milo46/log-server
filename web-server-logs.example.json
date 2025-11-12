@@ -1,0 +1,8 @@
+{
+    "schema_id": "web-server-logs",
+    "log_data": {
+        "level": "DEBUG",
+        "message": "Example debug message",
+        "request_id": "0"
+    }
+}

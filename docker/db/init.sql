@@ -41,7 +41,7 @@ VALUES (
     'Schema for web server access logs',
     '{
         "type": "object",
-        "required": ["timestamp", "level", "message", "request_id"],
+        "required": ["level", "message", "request_id"],
         "properties": {
             "timestamp": {
                 "type": "string",
