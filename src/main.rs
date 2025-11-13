@@ -19,7 +19,7 @@ use repositories::{SchemaRepository, LogRepository};
 use services::{SchemaService, LogService};
 use handlers::{
     get_schemas, get_schema_by_id, create_schema, update_schema, delete_schema,
-    get_logs, get_log_by_id, create_log, delete_log,
+    get_logs_default, get_logs, get_log_by_id, create_log, delete_log,
 };
 use axum::{response::Json, http::StatusCode};
 use serde_json::json;
@@ -77,13 +77,14 @@ async fn main() -> anyhow::Result<()> {
         .route("/health", get(health_check))
         .route("/schemas", get(get_schemas))
         .route("/schemas", post(create_schema))
-        .route("/schemas/:id", get(get_schema_by_id))
-        .route("/schemas/:id", put(update_schema))
-        .route("/schemas/:id", delete(delete_schema))
+        .route("/schemas/{id}", get(get_schema_by_id))
+        .route("/schemas/{id}", put(update_schema))
+        .route("/schemas/{id}", delete(delete_schema))
         .route("/logs", post(create_log))
-        .route("/logs/schema/:schema_id", get(get_logs))
-        .route("/logs/:id", get(get_log_by_id))
-        .route("/logs/:id", delete(delete_log))
+        .route("/logs/schema/{schema_name}", get(get_logs_default))
+        .route("/logs/schema/{schema_name}/{schema_version}", get(get_logs))
+        .route("/logs/{id}", get(get_log_by_id))
+        .route("/logs/{id}", delete(delete_log))
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())

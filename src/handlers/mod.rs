@@ -15,5 +15,5 @@ pub use schema_handlers::{
     get_schemas, get_schema_by_id, create_schema, update_schema, delete_schema
 };
 pub use log_handlers::{
-    get_logs, get_log_by_id, create_log, delete_log
+    get_logs_default, get_logs, get_log_by_id, create_log, delete_log
 };

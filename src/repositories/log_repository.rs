@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use sqlx::PgPool;
+use uuid::Uuid;
 // use crate::models::log_model::Log;
 
 use crate::models::Log;
@@ -8,7 +9,7 @@ use anyhow::Result;
 
 #[async_trait]
 pub trait LogRepositoryTrait {
-    async fn get_by_schema_id(&self, schema_id: &str) -> Result<Vec<Log>>;
+    async fn get_by_schema_id(&self, schema_id: Uuid) -> Result<Vec<Log>>;
     async fn get_by_id(&self, id: &str) -> Result<Option<Log>>;
     async fn create(&self, log: &Log) -> Result<Log>;
     async fn delete(&self, id: i32) -> Result<bool>;
@@ -27,7 +28,7 @@ impl LogRepository {
 
 #[async_trait]
 impl LogRepositoryTrait for LogRepository {
-    async fn get_by_schema_id(&self, schema_id: &str) -> Result<Vec<Log>> {
+    async fn get_by_schema_id(&self, schema_id: Uuid) -> Result<Vec<Log>> {
         let logs = sqlx::query_as::<_, Log>(
             "SELECT * FROM logs WHERE schema_id = $1 ORDER BY created_at DESC"
         )

@@ -2,10 +2,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::FromRow;
 use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Schema {
-    pub id: String,
+    pub id: Uuid,
     pub name: String,
     pub version: String,
     pub description: Option<String>,

@@ -5,6 +5,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use uuid::Uuid;
 
 use crate::AppState;
 
@@ -27,7 +28,7 @@ pub struct UpdateSchemaRequest {
 
 #[derive(Debug, Serialize)]
 pub struct SchemaResponse {
-    pub id: String,
+    pub id: Uuid,
     pub name: String,
     pub version: String,
     pub description: Option<String>,
@@ -71,10 +72,9 @@ pub async fn get_schemas(
 
 pub async fn get_schema_by_id(
     State(state): State<AppState>,
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
 ) -> Result<Json<SchemaResponse>, (StatusCode, Json<ErrorResponse>)> {
-    // Input validation
-    if id.trim().is_empty() {
+    if id.is_nil() {
         return Err((
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
@@ -84,7 +84,7 @@ pub async fn get_schema_by_id(
         ));
     }
 
-    match state.schema_service.get_schema_by_id(&id).await {
+    match state.schema_service.get_schema_by_id(id).await {
         Ok(Some(schema)) => Ok(Json(SchemaResponse {
             id: schema.id,
             name: schema.name,
@@ -115,7 +115,6 @@ pub async fn create_schema(
     State(state): State<AppState>,
     Json(payload): Json<CreateSchemaRequest>,
 ) -> Result<Json<SchemaResponse>, (StatusCode, Json<ErrorResponse>)> {
-    // Input validation
     if payload.name.trim().is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
@@ -174,11 +173,10 @@ pub async fn create_schema(
 
 pub async fn update_schema(
     State(state): State<AppState>,
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
     Json(payload): Json<UpdateSchemaRequest>,
 ) -> Result<Json<SchemaResponse>, (StatusCode, Json<ErrorResponse>)> {
-    // Input validation
-    if id.trim().is_empty() {
+    if id.is_nil() {
         return Err((
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
@@ -200,7 +198,7 @@ pub async fn update_schema(
 
     match state.schema_service
         .update_schema(
-            &id,
+            id,
             payload.name,
             payload.version,
             payload.description,
@@ -236,10 +234,9 @@ pub async fn update_schema(
 
 pub async fn delete_schema(
     State(state): State<AppState>,
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
-    // Input validation
-    if id.trim().is_empty() {
+    if id.is_nil() {
         return Err((
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
@@ -249,7 +246,7 @@ pub async fn delete_schema(
         ));
     }
 
-    match state.schema_service.delete_schema(&id).await {
+    match state.schema_service.delete_schema(id).await {
         Ok(true) => Ok(StatusCode::NO_CONTENT),
         Ok(false) => Err((
             StatusCode::NOT_FOUND,

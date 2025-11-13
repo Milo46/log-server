@@ -20,7 +20,7 @@ impl SchemaService {
         self.repository.get_all().await
     }
 
-    pub async fn get_schema_by_id(&self, id: &str) -> Result<Option<Schema>> {
+    pub async fn get_schema_by_id(&self, id: Uuid) -> Result<Option<Schema>> {
         self.repository.get_by_id(id).await
     }
 
@@ -40,7 +40,7 @@ impl SchemaService {
 
         let now = Utc::now();
         let schema = Schema {
-            id: Uuid::new_v4().to_string(),
+            id: Uuid::new_v4(),
             name,
             version,
             description,
@@ -54,7 +54,7 @@ impl SchemaService {
 
     pub async fn update_schema(
         &self,
-        id: &str,
+        id: Uuid,
         name: String,
         version: String,
         description: Option<String>,
@@ -68,7 +68,7 @@ impl SchemaService {
         }
 
         let updated_schema = Schema {
-            id: id.to_string(),
+            id,
             name,
             version,
             description,
@@ -80,7 +80,7 @@ impl SchemaService {
         self.repository.update(id, &updated_schema).await
     }
 
-    pub async fn delete_schema(&self, id: &str) -> Result<bool> {
+    pub async fn delete_schema(&self, id: Uuid) -> Result<bool> {
         self.repository.delete(id).await
     }
 
@@ -90,14 +90,10 @@ impl SchemaService {
             return Err(anyhow!("Schema definition must be a JSON object"));
         }
 
-        match jsonschema::JSONSchema::compile(schema_definition) {
-            Ok(_) => {
-                Ok(())
-            },
-            Err(e) => {
-                Err(anyhow!("Invalid JSON Schema: {}", e))
-            }
-        }
+        let _compiled = jsonschema::validator_for(schema_definition)
+            .map_err(|e| anyhow!("Invalid JSON Schema: {}", e))?;
+
+        Ok(())
 
         /*
         use serde_json::json;

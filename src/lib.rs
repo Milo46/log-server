@@ -10,7 +10,7 @@ pub use models::{Log, Schema};
 pub use services::{SchemaService, LogService};
 pub use handlers::{
     get_schemas, get_schema_by_id, create_schema, update_schema, delete_schema,
-    get_logs, get_log_by_id, create_log, delete_log, ErrorResponse
+    get_logs_default, get_logs, get_log_by_id, create_log, delete_log, ErrorResponse
 };
 
 #[derive(Clone)]

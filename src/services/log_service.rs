@@ -5,6 +5,7 @@ use crate::repositories::schema_repository::{SchemaRepository, SchemaRepositoryT
 use anyhow::{Result, anyhow};
 use chrono::Utc;
 use serde_json::Value;
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct LogService {
@@ -20,21 +21,21 @@ impl LogService {
         }
     }
 
-    pub async fn get_logs_by_schema_id(&self, schema_id: &str) -> Result<Vec<Log>> {
-        let schema = self.schema_repository.get_by_id(schema_id).await?;
+    pub async fn get_logs_by_schema_name_and_id(&self, name: &str, version: &str) -> Result<Vec<Log>> {
+        let schema = self.schema_repository.get_by_name_and_id(name, version).await?;
         if schema.is_none() {
-            return Err(anyhow!("Schema with id '{}' not found", schema_id));
+            return Err(anyhow!("Schema with name:version '{}:{}' not found", name, version));
         }
 
-        self.log_repository.get_by_schema_id(schema_id).await
+        self.log_repository.get_by_schema_id(schema.unwrap().id).await
     }
 
     pub async fn get_log_by_id(&self, id: &str) -> Result<Option<Log>> {
         self.log_repository.get_by_id(id).await
     }
 
-    pub async fn create_log(&self, schema_id: String, log_data: Value) -> Result<Log> {
-        let schema = self.schema_repository.get_by_id(&schema_id).await?;
+    pub async fn create_log(&self, schema_id: Uuid, log_data: Value) -> Result<Log> {
+        let schema = self.schema_repository.get_by_id(schema_id).await?;
         let schema = match schema {
             Some(s) => s,
             None => return Err(anyhow!("Schema with id '{}' not found", schema_id)),
@@ -57,20 +58,23 @@ impl LogService {
     }
 
     fn validate_log_against_schema(&self, log_data: &Value, schema_definition: &Value) -> Result<()> {
-        let compiled_schema = jsonschema::JSONSchema::compile(schema_definition)
+        let validator = jsonschema::ValidationOptions::default()
+            .with_draft(jsonschema::Draft::Draft7)
+            .build(schema_definition)
             .map_err(|e| anyhow!("Invalid JSON schema: {}", e))?;
 
-        if let Err(errors) = compiled_schema.validate(log_data) {
-            let error_messages: Vec<String> = errors
-                .map(|error| format!("Validation error at '{}': {}", error.instance_path, error))
-                .collect();
-            
-            return Err(anyhow!(
-                "Schema validation failed: {}",
-                error_messages.join("; ")
-            ));
-        }
+        let errors: Vec<_> = validator
+            .iter_errors(log_data)
+            .map(|e| format!("Validation error at '{}': {}", e.instance_path, e))
+            .collect();
 
-        Ok(())
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "Schema validation failed: {}",
+                errors.join("; ")
+            ))
+        }
     }
 }

@@ -5,43 +5,53 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use uuid::Uuid;
 
 use crate::AppState;
 
 // Request/Response DTOs for API layer
 #[derive(Debug, Deserialize)]
 pub struct CreateLogRequest {
-    pub schema_id: String,
+    pub schema_id: Uuid,
     pub log_data: Value,
 }
 
 #[derive(Debug, Serialize)]
 pub struct LogResponse {
     pub id: i32,
-    pub schema_id: String,
+    pub schema_id: Uuid,
     pub log_data: Value,
     pub created_at: String,
 }
 
 use super::ErrorResponse;
 
-// Handler functions - only responsible for HTTP concerns
+pub async fn get_logs_default(
+    State(state): State<AppState>,
+    Path(schema_name): Path<String>,
+) -> Result<Json<Value>, (StatusCode, Json<ErrorResponse>)> {
+    get_logs(State(state), Path((schema_name, "1.0.0".to_string()))).await
+}
+
 pub async fn get_logs(
     State(state): State<AppState>,
-    Path(schema_id): Path<String>,
+    Path((schema_name, schema_version)): Path<(String, String)>,
 ) -> Result<Json<Value>, (StatusCode, Json<ErrorResponse>)> {
-    // Input validation
-    if schema_id.trim().is_empty() {
+    if schema_name.trim().is_empty() || schema_version.trim().is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
                 error: "INVALID_INPUT".to_string(),
-                message: "Schema ID cannot be empty".to_string(),
+                message: "Schema name or version cannot be empty".to_string(),
             }),
         ));
     }
 
-    match state.log_service.get_logs_by_schema_id(&schema_id).await {
+    match state
+        .log_service
+        .get_logs_by_schema_name_and_id(&schema_name, &schema_version)
+        .await
+    {
         Ok(logs) => {
             let log_responses: Vec<LogResponse> = logs
                 .into_iter()
@@ -52,7 +62,7 @@ pub async fn get_logs(
                     created_at: l.created_at.to_rfc3339(),
                 })
                 .collect();
-            
+
             Ok(Json(json!({ "logs": log_responses })))
         }
         Err(e) => {
@@ -61,7 +71,7 @@ pub async fn get_logs(
             } else {
                 StatusCode::INTERNAL_SERVER_ERROR
             };
-            
+
             Err((
                 status_code,
                 Json(ErrorResponse {
@@ -105,8 +115,7 @@ pub async fn create_log(
     State(state): State<AppState>,
     Json(payload): Json<CreateLogRequest>,
 ) -> Result<Json<LogResponse>, (StatusCode, Json<ErrorResponse>)> {
-    // Input validation
-    if payload.schema_id.trim().is_empty() {
+    if payload.schema_id.is_nil() {
         return Err((
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse {
@@ -126,7 +135,8 @@ pub async fn create_log(
         ));
     }
 
-    match state.log_service
+    match state
+        .log_service
         .create_log(payload.schema_id, payload.log_data)
         .await
     {
@@ -139,12 +149,14 @@ pub async fn create_log(
         Err(e) => {
             let status_code = if e.to_string().contains("not found") {
                 StatusCode::NOT_FOUND
-            } else if e.to_string().contains("validation") || e.to_string().contains("Required field") {
+            } else if e.to_string().contains("validation")
+                || e.to_string().contains("Required field")
+            {
                 StatusCode::BAD_REQUEST
             } else {
                 StatusCode::INTERNAL_SERVER_ERROR
             };
-            
+
             Err((
                 status_code,
                 Json(ErrorResponse {
