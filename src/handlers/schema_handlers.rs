@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -8,6 +8,7 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 use crate::AppState;
+use crate::repositories::SchemaQueryParams;
 
 // Request/Response DTOs for API layer
 #[derive(Debug, Deserialize)]
@@ -39,11 +40,25 @@ pub struct SchemaResponse {
 
 use super::ErrorResponse;
 
-// Handler functions - only responsible for HTTP concerns
+/// Get all schemas with optional filtering by name and/or version.
+/// 
+/// Query parameters:
+/// - name: Filter schemas by exact name match
+/// - version: Filter schemas by exact version match
+/// - Both can be combined for precise filtering
+/// 
+/// All filtering is performed at the database level for optimal performance.
+/// 
+/// Examples:
+/// - /schemas - Get all schemas
+/// - /schemas?name=web-server-logs - Get all versions of "web-server-logs"
+/// - /schemas?version=1.0.0 - Get all schemas with version "1.0.0"
+/// - /schemas?name=web-server-logs&version=1.0.0 - Get specific schema by name+version
 pub async fn get_schemas(
     State(state): State<AppState>,
+    Query(params): Query<SchemaQueryParams>,
 ) -> Result<Json<Value>, (StatusCode, Json<ErrorResponse>)> {
-    match state.schema_service.get_all_schemas().await {
+    match state.schema_service.get_all_schemas(Some(params)).await {
         Ok(schemas) => {
             let schema_responses: Vec<SchemaResponse> = schemas
                 .into_iter()

@@ -1,12 +1,20 @@
 use async_trait::async_trait;
 use sqlx::PgPool;
 use uuid::Uuid;
+use serde::Deserialize;
 use crate::models::Schema;
 use anyhow::Result;
 
+/// Optional query parameters for filtering schemas
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct SchemaQueryParams {
+    pub name: Option<String>,
+    pub version: Option<String>,
+}
+
 #[async_trait]
 pub trait SchemaRepositoryTrait {
-    async fn get_all(&self) -> Result<Vec<Schema>>;
+    async fn get_all(&self, params: Option<SchemaQueryParams>) -> Result<Vec<Schema>>;
     async fn get_by_id(&self, id: Uuid) -> Result<Option<Schema>>;
     async fn get_by_name_and_version(&self, name: &str, version: &str) -> Result<Option<Schema>>;
     async fn create(&self, schema: &Schema) -> Result<Schema>;
@@ -27,11 +35,52 @@ impl SchemaRepository {
 
 #[async_trait]
 impl SchemaRepositoryTrait for SchemaRepository {
-    async fn get_all(&self) -> Result<Vec<Schema>> {
-        let schemas = sqlx::query_as::<_, Schema>("SELECT * FROM schemas ORDER BY created_at DESC")
-            .fetch_all(&self.pool)
-            .await?;
-        Ok(schemas)
+    async fn get_all(&self, params: Option<SchemaQueryParams>) -> Result<Vec<Schema>> {
+        // Build dynamic query based on filters
+        let query_params = params.unwrap_or_default();
+        
+        match (&query_params.name, &query_params.version) {
+            (Some(name), Some(version)) => {
+                tracing::debug!("Querying schemas with name={} AND version={}", name, version);
+                let schemas = sqlx::query_as::<_, Schema>(
+                    "SELECT * FROM schemas WHERE name = $1 AND version = $2 ORDER BY created_at DESC"
+                )
+                .bind(name)
+                .bind(version)
+                .fetch_all(&self.pool)
+                .await?;
+                Ok(schemas)
+            }
+            (Some(name), None) => {
+                tracing::debug!("Querying schemas with name={}", name);
+                let schemas = sqlx::query_as::<_, Schema>(
+                    "SELECT * FROM schemas WHERE name = $1 ORDER BY created_at DESC"
+                )
+                .bind(name)
+                .fetch_all(&self.pool)
+                .await?;
+                Ok(schemas)
+            }
+            (None, Some(version)) => {
+                tracing::debug!("Querying schemas with version={}", version);
+                let schemas = sqlx::query_as::<_, Schema>(
+                    "SELECT * FROM schemas WHERE version = $1 ORDER BY created_at DESC"
+                )
+                .bind(version)
+                .fetch_all(&self.pool)
+                .await?;
+                Ok(schemas)
+            }
+            (None, None) => {
+                tracing::debug!("Querying all schemas");
+                let schemas = sqlx::query_as::<_, Schema>(
+                    "SELECT * FROM schemas ORDER BY created_at DESC"
+                )
+                .fetch_all(&self.pool)
+                .await?;
+                Ok(schemas)
+            }
+        }
     }
 
     async fn get_by_id(&self, id: Uuid) -> Result<Option<Schema>> {

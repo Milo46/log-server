@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use crate::models::Schema;
-use crate::repositories::schema_repository::{SchemaRepository, SchemaRepositoryTrait};
+use crate::repositories::schema_repository::{SchemaRepository, SchemaRepositoryTrait, SchemaQueryParams};
 use anyhow::{Result, anyhow};
 use chrono::Utc;
 use serde_json::Value;
@@ -16,12 +16,16 @@ impl SchemaService {
         Self { repository }
     }
 
-    pub async fn get_all_schemas(&self) -> Result<Vec<Schema>> {
-        self.repository.get_all().await
+    pub async fn get_all_schemas(&self, params: Option<SchemaQueryParams>) -> Result<Vec<Schema>> {
+        self.repository.get_all(params).await
     }
 
     pub async fn get_schema_by_id(&self, id: Uuid) -> Result<Option<Schema>> {
         self.repository.get_by_id(id).await
+    }
+
+    pub async fn get_by_name_and_version(&self, name: &str, version: &str) -> Result<Option<Schema>> {
+        self.repository.get_by_name_and_version(name, version).await
     }
 
     pub async fn create_schema(
@@ -33,8 +37,8 @@ impl SchemaService {
     ) -> Result<Schema> {
         self.validate_schema_definition(&schema_definition)?;
         
-        let all_schemas = self.repository.get_all().await?;
-        if all_schemas.iter().any(|s| s.name == name && s.version == version) {
+        let existing = self.repository.get_by_name_and_version(&name, &version).await?;
+        if existing.is_some() {
             return Err(anyhow!("Schema with name '{}' and version '{}' already exists", name, version));
         }
 
