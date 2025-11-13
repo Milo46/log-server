@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use sqlx::PgPool;
 use uuid::Uuid;
-// use crate::models::log_model::Log;
+use serde_json::Value;
 
 use crate::models::Log;
 
@@ -9,7 +9,7 @@ use anyhow::Result;
 
 #[async_trait]
 pub trait LogRepositoryTrait {
-    async fn get_by_schema_id(&self, schema_id: Uuid) -> Result<Vec<Log>>;
+    async fn get_by_schema_id(&self, schema_id: Uuid, filters: Option<Value>) -> Result<Vec<Log>>;
     async fn get_by_id(&self, id: i32) -> Result<Option<Log>>;
     async fn create(&self, log: &Log) -> Result<Log>;
     async fn delete(&self, id: i32) -> Result<bool>;
@@ -28,13 +28,41 @@ impl LogRepository {
 
 #[async_trait]
 impl LogRepositoryTrait for LogRepository {
-    async fn get_by_schema_id(&self, schema_id: Uuid) -> Result<Vec<Log>> {
+    async fn get_by_schema_id(&self, schema_id: Uuid, filters: Option<Value>) -> Result<Vec<Log>> {
+        // Build dynamic query based on filters
+        if let Some(filter_obj) = &filters {
+            if let Some(filter_map) = filter_obj.as_object() {
+                // Build WHERE conditions for JSONB filtering
+                // PostgreSQL @> operator checks if left JSONB contains right JSONB
+                let logs = sqlx::query_as::<_, Log>(
+                    "SELECT * FROM logs WHERE schema_id = $1 AND log_data @> $2 ORDER BY created_at DESC"
+                )
+                .bind(schema_id)
+                .bind(filter_obj)
+                .fetch_all(&self.pool)
+                .await?;
+                
+                tracing::debug!(
+                    "Fetched {} logs for schema_id={} with filters: {:?}", 
+                    logs.len(), 
+                    schema_id,
+                    filter_map.keys().collect::<Vec<_>>()
+                );
+                
+                return Ok(logs);
+            }
+        }
+        
+        // No filters - return all logs for this schema
         let logs = sqlx::query_as::<_, Log>(
             "SELECT * FROM logs WHERE schema_id = $1 ORDER BY created_at DESC"
         )
         .bind(schema_id)
         .fetch_all(&self.pool)
         .await?;
+        
+        tracing::debug!("Fetched {} logs for schema_id={} (no filters)", logs.len(), schema_id);
+        
         Ok(logs)
     }
 

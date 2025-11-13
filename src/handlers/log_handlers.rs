@@ -1,11 +1,12 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, State, Query},
     http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
+use std::collections::HashMap;
 
 use crate::AppState;
 
@@ -29,13 +30,15 @@ use super::ErrorResponse;
 pub async fn get_logs_default(
     State(state): State<AppState>,
     Path(schema_name): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<Value>, (StatusCode, Json<ErrorResponse>)> {
-    get_logs(State(state), Path((schema_name, "1.0.0".to_string()))).await
+    get_logs(State(state), Path((schema_name, "1.0.0".to_string())), Query(params)).await
 }
 
 pub async fn get_logs(
     State(state): State<AppState>,
     Path((schema_name, schema_version)): Path<(String, String)>,
+    Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<Value>, (StatusCode, Json<ErrorResponse>)> {
     if schema_name.trim().is_empty() || schema_version.trim().is_empty() {
         return Err((
@@ -47,9 +50,21 @@ pub async fn get_logs(
         ));
     }
 
+    let filters: Option<Value> = if params.is_empty() {
+        None
+    } else {
+        let mut filter_obj = serde_json::Map::new();
+        for (key, value) in params {
+            let json_value = serde_json::from_str::<Value>(&value)
+                .unwrap_or_else(|_| Value::String(value));
+            filter_obj.insert(key, json_value);
+        }
+        Some(Value::Object(filter_obj))
+    };
+
     match state
         .log_service
-        .get_logs_by_schema_name_and_id(&schema_name, &schema_version)
+        .get_logs_by_schema_name_and_id(&schema_name, &schema_version, filters)
         .await
     {
         Ok(logs) => {

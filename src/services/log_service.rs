@@ -21,13 +21,13 @@ impl LogService {
         }
     }
 
-    pub async fn get_logs_by_schema_name_and_id(&self, name: &str, version: &str) -> Result<Vec<Log>> {
+    pub async fn get_logs_by_schema_name_and_id(&self, name: &str, version: &str, filters: Option<Value>) -> Result<Vec<Log>> {
         let schema = self.schema_repository.get_by_name_and_version(name, version).await?;
         if schema.is_none() {
             return Err(anyhow!("Schema with name:version '{}:{}' not found", name, version));
         }
 
-        self.log_repository.get_by_schema_id(schema.unwrap().id).await
+        self.log_repository.get_by_schema_id(schema.unwrap().id, filters).await
     }
 
     pub async fn get_log_by_id(&self, id: i32) -> Result<Option<Log>> {
