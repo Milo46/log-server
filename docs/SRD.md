@@ -41,11 +41,11 @@ Benefits:
 ### 4.1 POST /schemas
 
 * Accepts a JSON Schema definition that will be used to validate log entries
-* Required fields: `name`, `version`, `schema`
+* Required fields: `name`, `version`, `schema_definition`
 * Optional fields: `description`
 * Validates that the provided schema is a valid JSON Schema
-* Stores the schema definition in the database with a unique ID
-* Returns HTTP 201 on successful creation with the assigned schema ID
+* Stores the schema definition in the database with an auto-generated UUID
+* Returns HTTP 201 on successful creation with the assigned schema UUID
 * Supports JSON Schema Draft 7 specification
 * Example payload:
 
@@ -54,7 +54,7 @@ Benefits:
         "name": "web-server-logs",
         "version": "1.0.0",
         "description": "Schema for web server access logs",
-        "schema": {
+        "schema_definition": {
             "type": "object",
             "required": ["timestamp", "level", "message", "request_id"],
             "properties": {
@@ -88,56 +88,120 @@ Benefits:
 
 ### 4.2 GET /schemas
 
-* Retrieves all registered schemas or a specific schema by ID
-* Query parameters:
-  * `id`: Retrieve specific schema by ID
-  * `name`: Filter schemas by name
-  * `version`: Filter schemas by version
-* Returns JSON array of schema definitions or single schema object
-* Includes metadata like creation date and usage statistics
+* Retrieves all registered schemas with optional filtering
+* Query parameters (all optional):
+  * `name`: Filter schemas by exact name match
+  * `version`: Filter schemas by exact version match
+* Returns JSON object with `schemas` array
+* Filtering is performed at the database level for optimal performance
+* Example: `GET /schemas?name=web-server-logs&version=1.0.0`
 
-### 4.3 POST /logs/{schema_id}
+### 4.2.1 GET /schemas/{id}
 
-* Accepts a JSON object representing a single log entry
+* Retrieves a specific schema by its UUID
+* Path parameter `id`: The UUID of the schema
+* Returns HTTP 200 with schema object
+* Returns HTTP 404 if schema not found
+
+### 4.3 POST /logs
+
+* Accepts a JSON object representing a single log entry with schema reference
+* Required fields in request body:
+  * `schema_id`: UUID of the schema to validate against
+  * `log_data`: JSON object containing the log entry
 * Validates the log entry against the specified schema
-* Path parameter `schema_id`: The unique name identifier of the schema to validate against
 * Stores validated log entries in PostgreSQL database with schema reference
-* Returns HTTP 201 on successful creation
-* Returns HTTP 400 if schema_id doesn't exist
+* Returns HTTP 201 on successful creation with the log entry details
+* Returns HTTP 404 if schema_id doesn't exist
 * Returns HTTP 422 if log entry doesn't conform to schema
-* Example request to `/logs/web-server-logs`:
+* Example request:
 
     ```json
     {
-        "timestamp": "2025-10-23T10:00:00Z",
-        "level": "INFO",
-        "message": "User login successful",
-        "request_id": "req-12345",
-        "user_id": "user-67890",
-        "response_time_ms": 150
+        "schema_id": "550e8400-e29b-41d4-a716-446655440000",
+        "log_data": {
+            "timestamp": "2025-10-23T10:00:00Z",
+            "level": "INFO",
+            "message": "User login successful",
+            "request_id": "req-12345",
+            "user_id": "user-67890",
+            "response_time_ms": 150
+        }
     }
     ```
 
 ### 4.4 GET /logs
 
-* Retrieves stored log entries with optional filtering
-* Query parameters:
-  * `limit`: Maximum number of entries (default: 100, max: 1000)
-  * `offset`: Number of entries to skip (default: 0)
-  * `schema_id`: Filter by schema ID
-  * `from`: Start timestamp (ISO 8601 format)
-  * `to`: End timestamp (ISO 8601 format)
-* Returns JSON array of log entries with schema information
-* Supports pagination via `limit` and `offset`
-* Each log entry includes the schema ID it was validated against
+* Retrieves stored log entries with filtering capabilities
 
-### 4.5 GET /health
+#### 4.4.1 GET /logs/schema/{schema_name}
+
+* Get all logs for a specific schema by name (uses latest version, defaults to 1.0.0)
+* Path parameter `schema_name`: The name of the schema
+* Query parameters: Any top-level JSONB field for exact-match filtering
+* Example: `GET /logs/schema/temperature-readings?location=desk-thermometer&temperature=22.5`
+
+#### 4.4.2 GET /logs/schema/{schema_name}/{version}
+
+* Get all logs for a specific schema name and version
+* Path parameters:
+  * `schema_name`: The name of the schema
+  * `version`: The specific version
+* Query parameters: Any top-level JSONB field for exact-match filtering
+* Example: `GET /logs/schema/web-server-logs/1.0.0?level=ERROR&user_id=user-123`
+
+#### 4.4.3 GET /logs/{id}
+
+* Retrieve a specific log entry by its numeric ID
+* Path parameter `id`: The log entry ID
+* Returns HTTP 200 with log entry details
+* Returns HTTP 404 if log not found
+
+**Filtering:**
+* JSONB field filtering uses PostgreSQL's `@>` containment operator
+* Supports exact matching on top-level fields
+* Multiple query parameters use AND logic
+* All filtering performed at database level using GIN index
+
+### 4.5 PUT /schemas/{id}
+
+* Update an existing schema by UUID
+* Path parameter `id`: The UUID of the schema to update
+* Request body same as POST /schemas (name, version, description, schema_definition)
+* Returns HTTP 200 with updated schema
+* Returns HTTP 404 if schema not found
+
+### 4.6 DELETE /schemas/{id}
+
+* Delete a schema by UUID
+* Path parameter `id`: The UUID of the schema to delete
+* Returns HTTP 204 (No Content) on success
+* Returns HTTP 404 if schema not found
+* Note: Consider cascade deletion or orphan log handling
+
+### 4.7 DELETE /logs/{id}
+
+* Delete a specific log entry by ID
+* Path parameter `id`: The numeric ID of the log entry
+* Returns HTTP 204 (No Content) on success
+* Returns HTTP 404 if log not found
+
+### 4.8 GET /health
 
 * Health check endpoint for monitoring and load balancers
+* Also available at `GET /` (root path)
 * Returns HTTP 200 with service status information
-* Includes database connectivity status
+* Includes database connectivity status (when implemented)
+* Response format:
+    ```json
+    {
+        "status": "healthy",
+        "service": "log-server",
+        "timestamp": "2025-11-13T10:00:00Z"
+    }
+    ```
 
-### 4.6 Error Handling
+### 4.9 Error Handling
 
 * HTTP 400: Invalid JSON, missing required fields, or invalid schema_id
 * HTTP 422: Valid JSON but fails schema validation (for logs) or invalid JSON Schema (for schemas)
@@ -206,7 +270,7 @@ Components:
 ```sql
 -- Table for storing user-defined schemas
 CREATE TABLE schemas (
-    id VARCHAR(255) PRIMARY KEY,
+    id UUID PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     version VARCHAR(50) NOT NULL,
     description TEXT,
@@ -219,7 +283,7 @@ CREATE TABLE schemas (
 -- Table for storing log entries
 CREATE TABLE logs (
     id SERIAL PRIMARY KEY,
-    schema_id VARCHAR(255) NOT NULL REFERENCES schemas(id),
+    schema_id UUID NOT NULL REFERENCES schemas(id),
     log_data JSONB NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -240,11 +304,11 @@ CREATE INDEX idx_logs_data_gin ON logs USING GIN (log_data);
 
 ```json
 {
-    "id": "web-server-logs",
+    "id": "550e8400-e29b-41d4-a716-446655440000",
     "name": "web-server-logs",
     "version": "1.0.0",
     "description": "Schema for web server access logs",
-    "schema": {
+    "schema_definition": {
         "type": "object",
         "required": ["timestamp", "level", "message", "request_id"],
         "properties": {
@@ -264,9 +328,7 @@ CREATE INDEX idx_logs_data_gin ON logs USING GIN (log_data);
 ```json
 {
     "id": 123,
-    "schema_id": "web-server-logs",
-    "schema_name": "web-server-logs",
-    "schema_version": "1.0.0",
+    "schema_id": "550e8400-e29b-41d4-a716-446655440000",
     "log_data": {
         "timestamp": "2025-10-23T10:00:00Z",
         "level": "INFO",
@@ -283,19 +345,8 @@ CREATE INDEX idx_logs_data_gin ON logs USING GIN (log_data);
 
 ```json
 {
-    "error": "Schema validation failed",
-    "details": "Missing required field: request_id",
-    "schema_id": "web-server-logs",
-    "violations": [
-        {
-            "field": "request_id",
-            "message": "Field is required but missing"
-        },
-        {
-            "field": "response_time_ms",
-            "message": "Value must be a non-negative number"
-        }
-    ]
+    "error": "CREATION_FAILED",
+    "message": "Schema validation failed: Validation error at '/request_id': 'request_id' is a required property"
 }
 ```
 
@@ -303,8 +354,8 @@ CREATE INDEX idx_logs_data_gin ON logs USING GIN (log_data);
 
 ```json
 {
-    "error": "Schema not found",
-    "details": "No schema found with ID: invalid-schema-name"
+    "error": "NOT_FOUND",
+    "message": "Schema with id '550e8400-e29b-41d4-a716-446655440000' not found"
 }
 ```
 
@@ -322,8 +373,19 @@ CREATE INDEX idx_logs_data_gin ON logs USING GIN (log_data);
 
 ### 8.3 Authentication
 
-* Phase 1: No authentication (suitable for internal networks)
-* Future: Bearer token or API key authentication
+* **Current (v1.0.0)**: No authentication implemented
+  * All endpoints are publicly accessible
+  * Suitable for development environments and trusted internal networks only
+  * **Not recommended for production without network-level security**
+* **Planned (v1.1.0+)**: Optional API key authentication
+  * Environment variable-based API key configuration
+  * Header-based authentication (`X-API-Key`)
+  * Public endpoints: `/`, `/health`
+  * Protected endpoints: All schema and log management operations
+* **Future (v2.0.0)**: Advanced authentication & authorization
+  * JWT-based authentication
+  * Role-based access control (RBAC)
+  * Multi-tenant support
 
 ### 8.4 Rate Limiting
 
@@ -344,8 +406,8 @@ CREATE INDEX idx_logs_data_gin ON logs USING GIN (log_data);
 * **API Version**: v1
 * **Database Schema Version**: 1.0
 * **Compatibility**:
-  * Rust 1.70+
-  * PostgreSQL 15+
+  * Rust 1.82+ (2021 edition)
+  * PostgreSQL 16+
   * Docker 20.10+
   * Docker Compose 2.0+
 
