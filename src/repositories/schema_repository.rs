@@ -108,13 +108,13 @@ impl SchemaRepositoryTrait for SchemaRepository {
             RETURNING *
             "#
         )
-        .bind(&schema.id)
+        .bind(schema.id)
         .bind(&schema.name)
         .bind(&schema.version)
         .bind(&schema.description)
         .bind(&schema.schema_definition)
-        .bind(&schema.created_at)
-        .bind(&schema.updated_at)
+        .bind(schema.created_at)
+        .bind(schema.updated_at)
         .fetch_one(&self.pool)
         .await?;
         
@@ -135,7 +135,7 @@ impl SchemaRepositoryTrait for SchemaRepository {
         .bind(&schema.version)
         .bind(&schema.description)
         .bind(&schema.schema_definition)
-        .bind(&schema.updated_at)
+        .bind(schema.updated_at)
         .fetch_optional(&self.pool)
         .await?;
         

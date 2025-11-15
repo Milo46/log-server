@@ -91,9 +91,9 @@ impl LogRepositoryTrait for LogRepository {
             RETURNING *
             "#
         )
-        .bind(&log.schema_id)
+        .bind(log.schema_id)
         .bind(&log.log_data)
-        .bind(&log.created_at)
+        .bind(log.created_at)
         .fetch_one(&self.pool)
         .await?;
         

@@ -56,7 +56,7 @@ pub async fn get_logs(
         let mut filter_obj = serde_json::Map::new();
         for (key, value) in params {
             let json_value = serde_json::from_str::<Value>(&value)
-                .unwrap_or_else(|_| Value::String(value));
+                .unwrap_or(Value::String(value));
             filter_obj.insert(key, json_value);
         }
         Some(Value::Object(filter_obj))
