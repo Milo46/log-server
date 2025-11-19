@@ -1,0 +1,25 @@
+# Test Runner Dockerfile
+# This container builds and runs the integration tests
+
+FROM rust:latest
+
+# Install system dependencies for testing
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency files first for better layer caching
+COPY Cargo.toml Cargo.lock* ./
+
+# Copy source code
+COPY src ./src
+COPY tests ./tests
+
+# Build test binary
+RUN cargo build --tests
+
+# Default command runs all tests
+CMD ["cargo", "test", "--", "--nocapture"]
