@@ -81,7 +81,7 @@ pub async fn get_schemas(
             Json(ErrorResponse::new("INTERNAL_ERROR", e.to_string())),
         )),
     }
-2}
+}
 
 pub async fn get_schema_by_id(
     State(state): State<AppState>,
