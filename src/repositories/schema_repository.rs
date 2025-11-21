@@ -1,12 +1,10 @@
+use crate::models::Schema;
+use anyhow::Result;
 use async_trait::async_trait;
 use sqlx::PgPool;
 use uuid::Uuid;
-use serde::Deserialize;
-use crate::models::Schema;
-use anyhow::Result;
 
-/// Optional query parameters for filtering schemas
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct SchemaQueryParams {
     pub name: Option<String>,
     pub version: Option<String>,
@@ -36,12 +34,15 @@ impl SchemaRepository {
 #[async_trait]
 impl SchemaRepositoryTrait for SchemaRepository {
     async fn get_all(&self, params: Option<SchemaQueryParams>) -> Result<Vec<Schema>> {
-        // Build dynamic query based on filters
         let query_params = params.unwrap_or_default();
-        
+
         match (&query_params.name, &query_params.version) {
             (Some(name), Some(version)) => {
-                tracing::debug!("Querying schemas with name={} AND version={}", name, version);
+                tracing::debug!(
+                    "Querying schemas with name={} AND version={}",
+                    name,
+                    version
+                );
                 let schemas = sqlx::query_as::<_, Schema>(
                     "SELECT * FROM schemas WHERE name = $1 AND version = $2 ORDER BY created_at DESC"
                 )
@@ -54,7 +55,7 @@ impl SchemaRepositoryTrait for SchemaRepository {
             (Some(name), None) => {
                 tracing::debug!("Querying schemas with name={}", name);
                 let schemas = sqlx::query_as::<_, Schema>(
-                    "SELECT * FROM schemas WHERE name = $1 ORDER BY created_at DESC"
+                    "SELECT * FROM schemas WHERE name = $1 ORDER BY created_at DESC",
                 )
                 .bind(name)
                 .fetch_all(&self.pool)
@@ -64,7 +65,7 @@ impl SchemaRepositoryTrait for SchemaRepository {
             (None, Some(version)) => {
                 tracing::debug!("Querying schemas with version={}", version);
                 let schemas = sqlx::query_as::<_, Schema>(
-                    "SELECT * FROM schemas WHERE version = $1 ORDER BY created_at DESC"
+                    "SELECT * FROM schemas WHERE version = $1 ORDER BY created_at DESC",
                 )
                 .bind(version)
                 .fetch_all(&self.pool)
@@ -73,11 +74,10 @@ impl SchemaRepositoryTrait for SchemaRepository {
             }
             (None, None) => {
                 tracing::debug!("Querying all schemas");
-                let schemas = sqlx::query_as::<_, Schema>(
-                    "SELECT * FROM schemas ORDER BY created_at DESC"
-                )
-                .fetch_all(&self.pool)
-                .await?;
+                let schemas =
+                    sqlx::query_as::<_, Schema>("SELECT * FROM schemas ORDER BY created_at DESC")
+                        .fetch_all(&self.pool)
+                        .await?;
                 Ok(schemas)
             }
         }
@@ -92,11 +92,12 @@ impl SchemaRepositoryTrait for SchemaRepository {
     }
 
     async fn get_by_name_and_version(&self, name: &str, version: &str) -> Result<Option<Schema>> {
-        let schema = sqlx::query_as::<_, Schema>("SELECT * FROM schemas WHERE name = $1 AND version = $2")
-            .bind(name)
-            .bind(version)
-            .fetch_optional(&self.pool)
-            .await?;
+        let schema =
+            sqlx::query_as::<_, Schema>("SELECT * FROM schemas WHERE name = $1 AND version = $2")
+                .bind(name)
+                .bind(version)
+                .fetch_optional(&self.pool)
+                .await?;
         Ok(schema)
     }
 
@@ -117,7 +118,7 @@ impl SchemaRepositoryTrait for SchemaRepository {
         .bind(schema.updated_at)
         .fetch_one(&self.pool)
         .await?;
-        
+
         Ok(created_schema)
     }
 
@@ -128,7 +129,7 @@ impl SchemaRepositoryTrait for SchemaRepository {
             SET name = $2, version = $3, description = $4, schema_definition = $5, updated_at = $6
             WHERE id = $1
             RETURNING *
-            "#
+            "#,
         )
         .bind(id)
         .bind(&schema.name)
@@ -138,7 +139,7 @@ impl SchemaRepositoryTrait for SchemaRepository {
         .bind(schema.updated_at)
         .fetch_optional(&self.pool)
         .await?;
-        
+
         Ok(updated_schema)
     }
 
@@ -147,7 +148,7 @@ impl SchemaRepositoryTrait for SchemaRepository {
             .bind(id)
             .execute(&self.pool)
             .await?;
-        
+
         Ok(result.rows_affected() > 0)
     }
 }

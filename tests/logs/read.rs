@@ -1,39 +1,42 @@
-use reqwest::StatusCode;
 use log_server::{ErrorResponse, Log, Schema};
+use reqwest::StatusCode;
 use serde_json::{json, Value};
 
-use crate::common::{TestContext, valid_schema_payload, valid_log_payload};
+use crate::common::{valid_log_payload, valid_schema_payload, TestContext};
 
 #[tokio::test]
 async fn retrieves_log_by_id() {
     let ctx = TestContext::new().await;
-    
-    let schema_response = ctx.client
+
+    let schema_response = ctx
+        .client
         .post(&format!("{}/schemas", ctx.base_url))
         .json(&valid_schema_payload("read-test"))
         .send()
         .await
         .expect("Failed to create schema");
-    
+
     let schema: Schema = schema_response.json().await.unwrap();
 
-    let log_response = ctx.client
+    let log_response = ctx
+        .client
         .post(&format!("{}/logs", ctx.base_url))
         .json(&valid_log_payload(schema.id))
         .send()
         .await
         .expect("Failed to create log");
-    
+
     let created_log: Log = log_response.json().await.unwrap();
 
-    let response = ctx.client
+    let response = ctx
+        .client
         .get(&format!("{}/logs/{}", ctx.base_url, created_log.id))
         .send()
         .await
         .expect("Failed to retrieve log");
 
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let retrieved_log: Log = response.json().await.unwrap();
     assert_eq!(retrieved_log.id, created_log.id);
     assert_eq!(retrieved_log.schema_id, schema.id);
@@ -44,14 +47,15 @@ async fn retrieves_log_by_id() {
 async fn returns_404_for_nonexistent_log() {
     let ctx = TestContext::new().await;
 
-    let response = ctx.client
+    let response = ctx
+        .client
         .get(&format!("{}/logs/{}", ctx.base_url, 99999))
         .send()
         .await
         .expect("Failed to send request");
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    
+
     let error: ErrorResponse = response.json().await.unwrap();
     assert_eq!(error.error, "NOT_FOUND");
 }
@@ -60,7 +64,8 @@ async fn returns_404_for_nonexistent_log() {
 async fn rejects_invalid_log_id_format() {
     let ctx = TestContext::new().await;
 
-    let response = ctx.client
+    let response = ctx
+        .client
         .get(&format!("{}/logs/invalid", ctx.base_url))
         .send()
         .await
@@ -72,14 +77,15 @@ async fn rejects_invalid_log_id_format() {
 #[tokio::test]
 async fn gets_logs_by_schema_name() {
     let ctx = TestContext::new().await;
-    
-    let schema_response = ctx.client
+
+    let schema_response = ctx
+        .client
         .post(&format!("{}/schemas", ctx.base_url))
         .json(&valid_schema_payload("logs-by-name"))
         .send()
         .await
         .expect("Failed to create schema");
-    
+
     let schema: Schema = schema_response.json().await.unwrap();
 
     for i in 1..=3 {
@@ -98,14 +104,15 @@ async fn gets_logs_by_schema_name() {
             .expect("Failed to create log");
     }
 
-    let response = ctx.client
+    let response = ctx
+        .client
         .get(&format!("{}/logs/schema/{}", ctx.base_url, "logs-by-name"))
         .send()
         .await
         .expect("Failed to get logs");
 
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let data: Value = response.json().await.unwrap();
     let logs = data["logs"].as_array().unwrap();
     assert_eq!(logs.len(), 3);
@@ -114,14 +121,15 @@ async fn gets_logs_by_schema_name() {
 #[tokio::test]
 async fn gets_logs_by_schema_name_and_version() {
     let ctx = TestContext::new().await;
-    
-    let schema_response = ctx.client
+
+    let schema_response = ctx
+        .client
         .post(&format!("{}/schemas", ctx.base_url))
         .json(&valid_schema_payload("logs-by-name-version"))
         .send()
         .await
         .expect("Failed to create schema");
-    
+
     let schema: Schema = schema_response.json().await.unwrap();
 
     ctx.client
@@ -131,14 +139,18 @@ async fn gets_logs_by_schema_name_and_version() {
         .await
         .expect("Failed to create log");
 
-    let response = ctx.client
-        .get(&format!("{}/logs/schema/{}/version/{}", ctx.base_url, "logs-by-name-version", "1.0.0"))
+    let response = ctx
+        .client
+        .get(&format!(
+            "{}/logs/schema/{}/version/{}",
+            ctx.base_url, "logs-by-name-version", "1.0.0"
+        ))
         .send()
         .await
         .expect("Failed to get logs");
 
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let data: Value = response.json().await.unwrap();
     let logs = data["logs"].as_array().unwrap();
     assert_eq!(logs.len(), 1);
@@ -147,8 +159,9 @@ async fn gets_logs_by_schema_name_and_version() {
 #[tokio::test]
 async fn filters_logs_with_query_parameters() {
     let ctx = TestContext::new().await;
-    
-    let schema_response = ctx.client
+
+    let schema_response = ctx
+        .client
         .post(&format!("{}/schemas", ctx.base_url))
         .json(&json!({
             "name": "filter-test",
@@ -165,7 +178,7 @@ async fn filters_logs_with_query_parameters() {
         .send()
         .await
         .expect("Failed to create schema");
-    
+
     let schema: Schema = schema_response.json().await.unwrap();
 
     for level in ["INFO", "ERROR", "INFO"] {
@@ -185,14 +198,18 @@ async fn filters_logs_with_query_parameters() {
             .expect("Failed to create log");
     }
 
-    let response = ctx.client
-        .get(&format!("{}/logs/schema/filter-test?level=ERROR", ctx.base_url))
+    let response = ctx
+        .client
+        .get(&format!(
+            "{}/logs/schema/filter-test?level=ERROR",
+            ctx.base_url
+        ))
         .send()
         .await
         .expect("Failed to get filtered logs");
 
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     let data: Value = response.json().await.unwrap();
     let logs = data["logs"].as_array().unwrap();
     assert_eq!(logs.len(), 1);
@@ -203,14 +220,15 @@ async fn filters_logs_with_query_parameters() {
 async fn returns_404_for_nonexistent_schema_name() {
     let ctx = TestContext::new().await;
 
-    let response = ctx.client
+    let response = ctx
+        .client
         .get(&format!("{}/logs/schema/nonexistent-schema", ctx.base_url))
         .send()
         .await
         .expect("Failed to send request");
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    
+
     let error: ErrorResponse = response.json().await.unwrap();
     assert_eq!(error.error, "NOT_FOUND");
 }
@@ -219,7 +237,8 @@ async fn returns_404_for_nonexistent_schema_name() {
 async fn rejects_empty_schema_name() {
     let ctx = TestContext::new().await;
 
-    let response = ctx.client
+    let response = ctx
+        .client
         .get(&format!("{}/logs/schema/", ctx.base_url))
         .send()
         .await

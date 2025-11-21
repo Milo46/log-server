@@ -1,10 +1,12 @@
-use std::sync::Arc;
 use crate::models::Schema;
-use crate::repositories::schema_repository::{SchemaRepository, SchemaRepositoryTrait, SchemaQueryParams};
 use crate::repositories::log_repository::{LogRepository, LogRepositoryTrait};
-use anyhow::{Result, anyhow};
+use crate::repositories::schema_repository::{
+    SchemaQueryParams, SchemaRepository, SchemaRepositoryTrait,
+};
+use anyhow::{anyhow, Result};
 use chrono::Utc;
 use serde_json::Value;
+use std::sync::Arc;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -15,7 +17,10 @@ pub struct SchemaService {
 
 impl SchemaService {
     pub fn new(repository: Arc<SchemaRepository>, log_repository: Arc<LogRepository>) -> Self {
-        Self { repository, log_repository }
+        Self {
+            repository,
+            log_repository,
+        }
     }
 
     pub async fn get_all_schemas(&self, params: Option<SchemaQueryParams>) -> Result<Vec<Schema>> {
@@ -26,7 +31,11 @@ impl SchemaService {
         self.repository.get_by_id(id).await
     }
 
-    pub async fn get_by_name_and_version(&self, name: &str, version: &str) -> Result<Option<Schema>> {
+    pub async fn get_by_name_and_version(
+        &self,
+        name: &str,
+        version: &str,
+    ) -> Result<Option<Schema>> {
         self.repository.get_by_name_and_version(name, version).await
     }
 
@@ -38,10 +47,17 @@ impl SchemaService {
         schema_definition: Value,
     ) -> Result<Schema> {
         self.validate_schema_definition(&schema_definition)?;
-        
-        let existing = self.repository.get_by_name_and_version(&name, &version).await?;
+
+        let existing = self
+            .repository
+            .get_by_name_and_version(&name, &version)
+            .await?;
         if existing.is_some() {
-            return Err(anyhow!("Schema with name '{}' and version '{}' already exists", name, version));
+            return Err(anyhow!(
+                "Schema with name '{}' and version '{}' already exists",
+                name,
+                version
+            ));
         }
 
         let now = Utc::now();
@@ -93,7 +109,7 @@ impl SchemaService {
         }
 
         let log_count = self.log_repository.count_by_schema_id(id).await?;
-        
+
         if log_count > 0 && !force {
             return Err(anyhow!(
                 "Cannot delete schema: {} log(s) are associated with this schema. Use force=true to delete schema and all associated logs.",
@@ -122,7 +138,7 @@ impl SchemaService {
 
         /*
         use serde_json::json;
-        
+
         // JSON Schema Draft 7 meta-schema (simplified - in production you'd load the full one)
         let meta_schema = json!({
             "$schema": "http://json-schema.org/draft-07/schema#",
@@ -134,15 +150,15 @@ impl SchemaService {
                 "additionalProperties": {"type": "boolean"}
             }
         });
-        
+
         let meta_validator = jsonschema::JSONSchema::compile(&meta_schema)
             .map_err(|e| anyhow!("Failed to compile meta-schema: {}", e))?;
-            
+
         if let Err(errors) = meta_validator.validate(schema_definition) {
             let error_messages: Vec<String> = errors
                 .map(|error| format!("Meta-schema validation error: {}", error))
                 .collect();
-            return Err(anyhow!("Schema does not conform to JSON Schema Draft 7: {}", 
+            return Err(anyhow!("Schema does not conform to JSON Schema Draft 7: {}",
                              error_messages.join("; ")));
         }
         */

@@ -1,24 +1,23 @@
 use log_server::Schema;
 use reqwest::StatusCode;
 
-use crate::common::{TestContext, valid_schema_payload};
+use crate::common::{valid_schema_payload, TestContext};
 
 #[tokio::test]
 async fn retrieves_existing_schema() {
     let ctx = TestContext::new().await;
-    let schema_response = ctx.client
+    let schema_response = ctx
+        .client
         .post(&format!("{}/schemas", ctx.base_url))
         .json(&valid_schema_payload("get-test"))
         .send()
         .await
         .unwrap();
 
-    let schema: Schema = schema_response
-        .json()
-        .await
-        .unwrap();
+    let schema: Schema = schema_response.json().await.unwrap();
 
-    let response = ctx.client
+    let response = ctx
+        .client
         .get(&format!("{}/schemas/{}", ctx.base_url, schema.id))
         .send()
         .await
@@ -35,8 +34,12 @@ async fn retrieves_existing_schema() {
 async fn returns_404_for_nonexistent_schema() {
     let ctx = TestContext::new().await;
 
-    let response = ctx.client
-        .get(&format!("{}/schemas/{}", ctx.base_url, "7182c4cb-24dc-4142-890c-3c7755ba673e"))
+    let response = ctx
+        .client
+        .get(&format!(
+            "{}/schemas/{}",
+            ctx.base_url, "7182c4cb-24dc-4142-890c-3c7755ba673e"
+        ))
         .send()
         .await
         .unwrap();
@@ -48,7 +51,8 @@ async fn returns_404_for_nonexistent_schema() {
 async fn rejects_invalid_uuid_format() {
     let ctx = TestContext::new().await;
 
-    let response = ctx.client
+    let response = ctx
+        .client
         .get(&format!("{}/schemas/{}", ctx.base_url, "not-a-uuid"))
         .send()
         .await

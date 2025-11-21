@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-pub mod schema_handlers;
 pub mod log_handlers;
+pub mod schema_handlers;
 
 // Shared error response type
 #[derive(Debug, Serialize, Deserialize)]
@@ -36,9 +36,7 @@ impl ErrorResponse {
 }
 
 // Re-export specific functions to avoid conflicts
+pub use log_handlers::{create_log, delete_log, get_log_by_id, get_logs, get_logs_default};
 pub use schema_handlers::{
-    get_schemas, get_schema_by_id, create_schema, update_schema, delete_schema
-};
-pub use log_handlers::{
-    get_logs_default, get_logs, get_log_by_id, create_log, delete_log
+    create_schema, delete_schema, get_schema_by_id, get_schemas, update_schema,
 };

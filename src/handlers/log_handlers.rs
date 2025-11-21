@@ -1,12 +1,12 @@
 use axum::{
-    extract::{Path, State, Query},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use uuid::Uuid;
 use std::collections::HashMap;
+use uuid::Uuid;
 
 use crate::AppState;
 
@@ -32,7 +32,12 @@ pub async fn get_logs_default(
     Path(schema_name): Path<String>,
     Query(params): Query<HashMap<String, String>>,
 ) -> Result<Json<Value>, (StatusCode, Json<ErrorResponse>)> {
-    get_logs(State(state), Path((schema_name, "1.0.0".to_string())), Query(params)).await
+    get_logs(
+        State(state),
+        Path((schema_name, "1.0.0".to_string())),
+        Query(params),
+    )
+    .await
 }
 
 pub async fn get_logs(
@@ -43,7 +48,10 @@ pub async fn get_logs(
     if schema_name.trim().is_empty() || schema_version.trim().is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new("INVALID_INPUT", "Schema name or version cannot be empty")),
+            Json(ErrorResponse::new(
+                "INVALID_INPUT",
+                "Schema name or version cannot be empty",
+            )),
         ));
     }
 
@@ -52,8 +60,7 @@ pub async fn get_logs(
     } else {
         let mut filter_obj = serde_json::Map::new();
         for (key, value) in params {
-            let json_value = serde_json::from_str::<Value>(&value)
-                .unwrap_or(Value::String(value));
+            let json_value = serde_json::from_str::<Value>(&value).unwrap_or(Value::String(value));
             filter_obj.insert(key, json_value);
         }
         Some(Value::Object(filter_obj))
@@ -105,7 +112,10 @@ pub async fn get_log_by_id(
         })),
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new("NOT_FOUND", format!("Log with id '{}' not found", id))),
+            Json(ErrorResponse::new(
+                "NOT_FOUND",
+                format!("Log with id '{}' not found", id),
+            )),
         )),
         Err(e) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -121,14 +131,20 @@ pub async fn create_log(
     if payload.schema_id.is_nil() {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new("INVALID_INPUT", "Schema ID cannot be empty")),
+            Json(ErrorResponse::new(
+                "INVALID_INPUT",
+                "Schema ID cannot be empty",
+            )),
         ));
     }
 
     if !payload.log_data.is_object() {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new("INVALID_INPUT", "Log data must be a JSON object")),
+            Json(ErrorResponse::new(
+                "INVALID_INPUT",
+                "Log data must be a JSON object",
+            )),
         ));
     }
 
@@ -170,7 +186,10 @@ pub async fn delete_log(
         Ok(true) => Ok(StatusCode::NO_CONTENT),
         Ok(false) => Err((
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new("NOT_FOUND", format!("Log with id '{}' not found", id))),
+            Json(ErrorResponse::new(
+                "NOT_FOUND",
+                format!("Log with id '{}' not found", id),
+            )),
         )),
         Err(e) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,

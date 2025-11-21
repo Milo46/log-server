@@ -1,29 +1,26 @@
-use std::sync::Arc;
 use axum::{
-    routing::{get, post, delete, put},
-    Router,
-    response::Json,
     http::StatusCode,
-};
-use tower::ServiceBuilder;
-use tower_http::{
-    trace::TraceLayer,
-    cors::CorsLayer,
+    response::Json,
+    routing::{delete, get, post, put},
+    Router,
 };
 use serde_json::json;
+use std::sync::Arc;
+use tower::ServiceBuilder;
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
+pub mod handlers;
 pub mod models;
 pub mod repositories;
 pub mod services;
-pub mod handlers;
 
-pub use models::{Log, Schema};
-pub use services::{SchemaService, LogService};
 pub use handlers::{
-    get_schemas, get_schema_by_id, create_schema, update_schema, delete_schema,
-    get_logs_default, get_logs, get_log_by_id, create_log, delete_log, ErrorResponse
+    create_log, create_schema, delete_log, delete_schema, get_log_by_id, get_logs,
+    get_logs_default, get_schema_by_id, get_schemas, update_schema, ErrorResponse,
 };
-pub use repositories::{SchemaRepository, LogRepository};
+pub use models::{Log, Schema};
+pub use repositories::{LogRepository, SchemaRepository};
+pub use services::{LogService, SchemaService};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -57,7 +54,7 @@ pub fn create_app(app_state: AppState) -> Router {
         .layer(
             ServiceBuilder::new()
                 .layer(TraceLayer::new_for_http())
-                .layer(CorsLayer::permissive())
+                .layer(CorsLayer::permissive()),
         )
         .with_state(app_state)
 }

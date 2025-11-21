@@ -1,12 +1,13 @@
 use reqwest::StatusCode;
 
-use crate::common::{TestContext, valid_schema_payload};
+use crate::common::{valid_schema_payload, TestContext};
 
 #[tokio::test]
 async fn lists_all_schemas() {
     let ctx = TestContext::new().await;
 
-    let initial_response = ctx.client
+    let initial_response = ctx
+        .client
         .get(&format!("{}/schemas", ctx.base_url))
         .send()
         .await
@@ -27,8 +28,9 @@ async fn lists_all_schemas() {
         .send()
         .await
         .unwrap();
-    
-    let response = ctx.client
+
+    let response = ctx
+        .client
         .get(&format!("{}/schemas", ctx.base_url))
         .send()
         .await
@@ -38,13 +40,16 @@ async fn lists_all_schemas() {
 
     let data: serde_json::Value = response.json().await.unwrap();
     let schemas = data["schemas"].as_array().unwrap();
-    assert_eq!(schemas.len(), initial_count + 2, 
-        "Expected {} schemas (initial {} + 2 new), but got {}", 
-        initial_count + 2, initial_count, schemas.len());
-    
-    let schema_names: Vec<&str> = schemas.iter()
-        .filter_map(|s| s["name"].as_str())
-        .collect();
+    assert_eq!(
+        schemas.len(),
+        initial_count + 2,
+        "Expected {} schemas (initial {} + 2 new), but got {}",
+        initial_count + 2,
+        initial_count,
+        schemas.len()
+    );
+
+    let schema_names: Vec<&str> = schemas.iter().filter_map(|s| s["name"].as_str()).collect();
     assert!(schema_names.contains(&"list-test-1"));
     assert!(schema_names.contains(&"list-test-2"));
 }

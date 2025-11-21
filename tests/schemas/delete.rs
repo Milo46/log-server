@@ -1,23 +1,25 @@
-use reqwest::StatusCode;
 use log_server::{ErrorResponse, Schema};
+use reqwest::StatusCode;
 use uuid::Uuid;
 
-use crate::common::{TestContext, valid_schema_payload};
+use crate::common::{valid_schema_payload, TestContext};
 
 #[tokio::test]
 async fn deletes_existing_schema_successfully() {
     let ctx = TestContext::new().await;
-    
-    let schema_response = ctx.client
+
+    let schema_response = ctx
+        .client
         .post(&format!("{}/schemas", ctx.base_url))
         .json(&valid_schema_payload("delete-test"))
         .send()
         .await
         .expect("Failed to create schema");
-    
+
     let schema: Schema = schema_response.json().await.unwrap();
 
-    let delete_response = ctx.client
+    let delete_response = ctx
+        .client
         .delete(&format!("{}/schemas/{}", ctx.base_url, schema.id))
         .send()
         .await
@@ -30,10 +32,11 @@ async fn deletes_existing_schema_successfully() {
 #[tokio::test]
 async fn returns_404_for_nonexistent_schema() {
     let ctx = TestContext::new().await;
-    
+
     let non_existent_id = Uuid::new_v4();
-    
-    let response = ctx.client
+
+    let response = ctx
+        .client
         .delete(&format!("{}/schemas/{}", ctx.base_url, non_existent_id))
         .send()
         .await
@@ -49,8 +52,9 @@ async fn returns_404_for_nonexistent_schema() {
 #[tokio::test]
 async fn rejects_invalid_uuid_format() {
     let ctx = TestContext::new().await;
-    
-    let response = ctx.client
+
+    let response = ctx
+        .client
         .delete(&format!("{}/schemas/invalid-uuid", ctx.base_url))
         .send()
         .await
@@ -62,10 +66,11 @@ async fn rejects_invalid_uuid_format() {
 #[tokio::test]
 async fn rejects_nil_uuid() {
     let ctx = TestContext::new().await;
-    
+
     let nil_uuid = Uuid::nil();
-    
-    let response = ctx.client
+
+    let response = ctx
+        .client
         .delete(&format!("{}/schemas/{}", ctx.base_url, nil_uuid))
         .send()
         .await
@@ -81,31 +86,35 @@ async fn rejects_nil_uuid() {
 #[tokio::test]
 async fn schema_not_accessible_after_deletion() {
     let ctx = TestContext::new().await;
-    
-    let schema_response = ctx.client
+
+    let schema_response = ctx
+        .client
         .post(&format!("{}/schemas", ctx.base_url))
         .json(&valid_schema_payload("accessible-test"))
         .send()
         .await
         .expect("Failed to create schema");
-    
+
     let schema: Schema = schema_response.json().await.unwrap();
 
-    let get_response = ctx.client
+    let get_response = ctx
+        .client
         .get(&format!("{}/schemas/{}", ctx.base_url, schema.id))
         .send()
         .await
         .unwrap();
     assert_eq!(get_response.status(), StatusCode::OK);
 
-    let delete_response = ctx.client
+    let delete_response = ctx
+        .client
         .delete(&format!("{}/schemas/{}", ctx.base_url, schema.id))
         .send()
         .await
         .unwrap();
     assert_eq!(delete_response.status(), StatusCode::NO_CONTENT);
 
-    let get_after_delete_response = ctx.client
+    let get_after_delete_response = ctx
+        .client
         .get(&format!("{}/schemas/{}", ctx.base_url, schema.id))
         .send()
         .await

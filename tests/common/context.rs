@@ -28,7 +28,7 @@ async fn wait_for_service() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::new();
     let mut retries = 30;
     let base_url = get_test_base_url();
-    
+
     while retries > 0 {
         match client.get(&format!("{}/health", base_url)).send().await {
             Ok(response) if response.status().is_success() => {
@@ -37,12 +37,15 @@ async fn wait_for_service() -> Result<(), Box<dyn std::error::Error>> {
             _ => {
                 retries -= 1;
                 if retries > 0 {
-                    println!("Service not ready, retrying in 1 second... ({} retries left)", retries);
+                    println!(
+                        "Service not ready, retrying in 1 second... ({} retries left)",
+                        retries
+                    );
                     sleep(Duration::from_secs(1)).await;
                 }
             }
         }
     }
-    
+
     Err("Service did not become ready in time".into())
 }

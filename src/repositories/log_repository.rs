@@ -1,7 +1,7 @@
 use async_trait::async_trait;
+use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
-use serde_json::Value;
 
 use crate::models::Log;
 
@@ -40,35 +40,39 @@ impl LogRepositoryTrait for LogRepository {
                 .bind(filter_obj)
                 .fetch_all(&self.pool)
                 .await?;
-                
+
                 tracing::debug!(
-                    "Fetched {} logs for schema_id={} with filters: {:?}", 
-                    logs.len(), 
+                    "Fetched {} logs for schema_id={} with filters: {:?}",
+                    logs.len(),
                     schema_id,
                     filter_map.keys().collect::<Vec<_>>()
                 );
-                
+
                 return Ok(logs);
             }
         }
-        
+
         let logs = sqlx::query_as::<_, Log>(
-            "SELECT * FROM logs WHERE schema_id = $1 ORDER BY created_at DESC"
+            "SELECT * FROM logs WHERE schema_id = $1 ORDER BY created_at DESC",
         )
         .bind(schema_id)
         .fetch_all(&self.pool)
         .await?;
-        
-        tracing::debug!("Fetched {} logs for schema_id={} (no filters)", logs.len(), schema_id);
-        
+
+        tracing::debug!(
+            "Fetched {} logs for schema_id={} (no filters)",
+            logs.len(),
+            schema_id
+        );
+
         Ok(logs)
     }
 
     async fn get_by_id(&self, id: i32) -> Result<Option<Log>> {
         let log = sqlx::query_as::<_, Log>("SELECT * FROM logs WHERE id = $1")
-           .bind(id)
-           .fetch_optional(&self.pool)
-           .await?;
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
 
         Ok(log)
     }
@@ -79,14 +83,14 @@ impl LogRepositoryTrait for LogRepository {
             INSERT INTO logs (schema_id, log_data, created_at)
             VALUES ($1, $2, $3)
             RETURNING *
-            "#
+            "#,
         )
         .bind(log.schema_id)
         .bind(&log.log_data)
         .bind(log.created_at)
         .fetch_one(&self.pool)
         .await?;
-        
+
         Ok(created_log)
     }
 
@@ -95,7 +99,7 @@ impl LogRepositoryTrait for LogRepository {
             .bind(id)
             .execute(&self.pool)
             .await?;
-        
+
         Ok(result.rows_affected() > 0)
     }
 
@@ -104,7 +108,7 @@ impl LogRepositoryTrait for LogRepository {
             .bind(schema_id)
             .fetch_one(&self.pool)
             .await?;
-        
+
         Ok(count)
     }
 
@@ -113,7 +117,7 @@ impl LogRepositoryTrait for LogRepository {
             .bind(schema_id)
             .execute(&self.pool)
             .await?;
-        
+
         Ok(result.rows_affected() as i64)
     }
 }
