@@ -102,7 +102,7 @@ jobs:
         sleep 5
 
     - name: Run integration tests
-      run: cargo test --test integration_tests
+      run: cargo test --test integration_test
       env:
         DATABASE_URL: postgresql://postgres:postgres@localhost/logserver_test
 
