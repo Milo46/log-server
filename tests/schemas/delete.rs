@@ -1,22 +1,35 @@
-use log_server::{ErrorResponse, Schema};
+use log_server::{ErrorResponse, SchemaResponse};
 use reqwest::StatusCode;
 use uuid::Uuid;
 
-use crate::common::{valid_schema_payload, TestContext};
+use crate::common::TestContext;
 
 #[tokio::test]
 async fn deletes_existing_schema_successfully() {
     let ctx = TestContext::new().await;
 
+    let unique_name = format!("delete-test-{}", uuid::Uuid::new_v4().simple());
+    let schema_payload = serde_json::json!({
+        "name": unique_name,
+        "version": "1.0.0",
+        "schema_definition": {
+            "type": "object",
+            "properties": {
+                "message": { "type": "string" }
+            },
+            "required": [ "message" ]
+        }
+    });
+
     let schema_response = ctx
         .client
         .post(&format!("{}/schemas", ctx.base_url))
-        .json(&valid_schema_payload("delete-test"))
+        .json(&schema_payload)
         .send()
         .await
         .expect("Failed to create schema");
 
-    let schema: Schema = schema_response.json().await.unwrap();
+    let schema: SchemaResponse = schema_response.json().await.unwrap();
 
     let delete_response = ctx
         .client
@@ -87,15 +100,29 @@ async fn rejects_nil_uuid() {
 async fn schema_not_accessible_after_deletion() {
     let ctx = TestContext::new().await;
 
+    // Create a unique schema name to avoid conflicts
+    let unique_name = format!("accessible-test-{}", uuid::Uuid::new_v4().simple());
+    let schema_payload = serde_json::json!({
+        "name": unique_name,
+        "version": "1.0.0",
+        "schema_definition": {
+            "type": "object",
+            "properties": {
+                "message": { "type": "string" }
+            },
+            "required": [ "message" ]
+        }
+    });
+
     let schema_response = ctx
         .client
         .post(&format!("{}/schemas", ctx.base_url))
-        .json(&valid_schema_payload("accessible-test"))
+        .json(&schema_payload)
         .send()
         .await
         .expect("Failed to create schema");
 
-    let schema: Schema = schema_response.json().await.unwrap();
+    let schema: SchemaResponse = schema_response.json().await.unwrap();
 
     let get_response = ctx
         .client

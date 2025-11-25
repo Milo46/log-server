@@ -47,7 +47,7 @@ pub struct DeleteSchemaQuery {
     pub force: Option<bool>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SchemaResponse {
     pub id: Uuid,
     pub name: String,
@@ -203,16 +203,18 @@ pub async fn create_schema(
             ))
         }
         Err(e) => {
-            let status_code = if e.to_string().contains("already exists") {
-                StatusCode::CONFLICT
+            let error_msg = e.to_string();
+            let (status_code, error_code) = if error_msg.contains("already exists") {
+                (StatusCode::CONFLICT, "SCHEMA_CONFLICT")
+            } else if error_msg.contains("Invalid JSON Schema")
+                || error_msg.contains("Schema definition must be")
+            {
+                (StatusCode::BAD_REQUEST, "INVALID_SCHEMA")
             } else {
-                StatusCode::BAD_REQUEST
+                (StatusCode::BAD_REQUEST, "CREATION_FAILED")
             };
 
-            Err((
-                status_code,
-                Json(ErrorResponse::new("CREATION_FAILED", e.to_string())),
-            ))
+            Err((status_code, Json(ErrorResponse::new(error_code, error_msg))))
         }
     }
 }
@@ -271,16 +273,17 @@ pub async fn update_schema(
         )),
         Err(e) => {
             let error_msg = e.to_string();
-            let status_code = if error_msg.contains("already exists") {
-                StatusCode::CONFLICT
+            let (status_code, error_code) = if error_msg.contains("already exists") {
+                (StatusCode::CONFLICT, "SCHEMA_CONFLICT")
+            } else if error_msg.contains("Invalid JSON Schema")
+                || error_msg.contains("Schema definition must be")
+            {
+                (StatusCode::BAD_REQUEST, "INVALID_SCHEMA")
             } else {
-                StatusCode::BAD_REQUEST
+                (StatusCode::BAD_REQUEST, "UPDATE_FAILED")
             };
 
-            Err((
-                status_code,
-                Json(ErrorResponse::new("UPDATE_FAILED", error_msg)),
-            ))
+            Err((status_code, Json(ErrorResponse::new(error_code, error_msg))))
         }
     }
 }

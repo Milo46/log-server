@@ -360,8 +360,8 @@ async fn rejects_duplicate_name_when_updating() {
 
     let update_payload = json!({
         "name": "original-schema",
-        "version": "2.0.0",
-        "description": "Trying to use duplicate name",
+        "version": "1.0.0", // This should conflict because original-schema v1.0.0 already exists
+        "description": "Trying to use duplicate name and version",
         "schema_definition": {
             "type": "object",
             "properties": {
@@ -381,8 +381,9 @@ async fn rejects_duplicate_name_when_updating() {
     assert_eq!(response.status(), StatusCode::CONFLICT);
 
     let error: ErrorResponse = response.json().await.unwrap();
-    assert_eq!(error.error, "DUPLICATE_NAME");
+    assert_eq!(error.error, "SCHEMA_CONFLICT");
     assert!(error.message.contains("original-schema"));
+    assert!(error.message.contains("already exists"));
 }
 
 #[tokio::test]

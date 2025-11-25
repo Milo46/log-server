@@ -16,7 +16,7 @@ pub mod services;
 
 pub use handlers::{
     create_log, create_schema, delete_log, delete_schema, get_log_by_id, get_logs,
-    get_logs_default, get_schema_by_id, get_schemas, update_schema, ErrorResponse,
+    get_logs_default, get_schema_by_id, get_schemas, update_schema, ErrorResponse, SchemaResponse,
 };
 pub use models::{Log, Schema};
 pub use repositories::{LogRepository, SchemaRepository};
