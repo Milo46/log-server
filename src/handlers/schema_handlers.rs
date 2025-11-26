@@ -4,62 +4,19 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use crate::repositories::schema_repository::SchemaQueryParams;
-use crate::AppState;
+use crate::{
+    dto::{
+        CreateSchemaRequest, DeleteSchemaQuery, ErrorResponse, GetSchemasQuery, SchemaResponse,
+        UpdateSchemaRequest,
+    },
+    repositories::schema_repository::SchemaQueryParams,
+    AppState,
+};
 
-#[derive(Debug, Deserialize)]
-pub struct GetSchemasQuery {
-    pub name: Option<String>,
-    pub version: Option<String>,
-}
-
-impl From<GetSchemasQuery> for SchemaQueryParams {
-    fn from(query: GetSchemasQuery) -> Self {
-        SchemaQueryParams {
-            name: query.name,
-            version: query.version,
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CreateSchemaRequest {
-    pub name: String,
-    pub version: String,
-    pub description: Option<String>,
-    pub schema_definition: Value,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateSchemaRequest {
-    pub name: String,
-    pub version: String,
-    pub description: Option<String>,
-    pub schema_definition: Value,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct DeleteSchemaQuery {
-    pub force: Option<bool>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct SchemaResponse {
-    pub id: Uuid,
-    pub name: String,
-    pub version: String,
-    pub description: Option<String>,
-    pub schema_definition: Value,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-use super::ErrorResponse;
-
+/// ## GET /schemas
 /// Get all schemas with optional filtering by name and/or version.
 ///
 /// Query parameters:
@@ -78,7 +35,7 @@ pub async fn get_schemas(
     State(state): State<AppState>,
     Query(query): Query<GetSchemasQuery>,
 ) -> Result<Json<Value>, (StatusCode, Json<ErrorResponse>)> {
-    let repo_params = query.into();
+    let repo_params = SchemaQueryParams::from(query);
 
     match state
         .schema_service
@@ -88,15 +45,7 @@ pub async fn get_schemas(
         Ok(schemas) => {
             let schema_responses: Vec<SchemaResponse> = schemas
                 .into_iter()
-                .map(|s| SchemaResponse {
-                    id: s.id,
-                    name: s.name,
-                    version: s.version,
-                    description: s.description,
-                    schema_definition: s.schema_definition,
-                    created_at: s.created_at.to_rfc3339(),
-                    updated_at: s.updated_at.to_rfc3339(),
-                })
+                .map(|schema| SchemaResponse::from(schema))
                 .collect();
 
             Ok(Json(json!({ "schemas": schema_responses })))
@@ -108,6 +57,47 @@ pub async fn get_schemas(
     }
 }
 
+/// ## GET /schemas/{schema_name}/{schema_version}
+/// Get one schema with matching name and version.
+pub async fn get_schema_by_name_and_version(
+    State(state): State<AppState>,
+    Path((schema_name, schema_version)): Path<(String, String)>,
+) -> Result<Json<SchemaResponse>, (StatusCode, Json<ErrorResponse>)> {
+    if schema_name.trim().is_empty() || schema_version.trim().is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse::new(
+                "INVALID_INPUT",
+                "Schema name or version cannot be empty",
+            )),
+        ));
+    }
+
+    match state
+        .schema_service
+        .get_by_name_and_version(&schema_name, &schema_version)
+        .await
+    {
+        Ok(Some(schema)) => Ok(Json(SchemaResponse::from(schema))),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new(
+                "NOT_FOUND",
+                format!(
+                    "Schema with name '{}' and version '{}' not found",
+                    schema_name, schema_version
+                ),
+            )),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("INTERNAL_ERROR", e.to_string())),
+        )),
+    }
+}
+
+/// ## GET /schemas/{schema_id}
+/// Get one schema with matching id.
 pub async fn get_schema_by_id(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -123,15 +113,7 @@ pub async fn get_schema_by_id(
     }
 
     match state.schema_service.get_schema_by_id(id).await {
-        Ok(Some(schema)) => Ok(Json(SchemaResponse {
-            id: schema.id,
-            name: schema.name,
-            version: schema.version,
-            description: schema.description,
-            schema_definition: schema.schema_definition,
-            created_at: schema.created_at.to_rfc3339(),
-            updated_at: schema.updated_at.to_rfc3339(),
-        })),
+        Ok(Some(schema)) => Ok(Json(SchemaResponse::from(schema))),
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
@@ -146,6 +128,8 @@ pub async fn get_schema_by_id(
     }
 }
 
+/// ## POST /schemas
+/// Create a new schema.
 pub async fn create_schema(
     State(state): State<AppState>,
     Json(payload): Json<CreateSchemaRequest>,
@@ -191,32 +175,28 @@ pub async fn create_schema(
             Ok((
                 StatusCode::CREATED,
                 headers,
-                Json(SchemaResponse {
-                    id: schema.id,
-                    name: schema.name,
-                    version: schema.version,
-                    description: schema.description,
-                    schema_definition: schema.schema_definition,
-                    created_at: schema.created_at.to_rfc3339(),
-                    updated_at: schema.updated_at.to_rfc3339(),
-                }),
+                Json(SchemaResponse::from(schema)),
             ))
         }
         Err(e) => {
-            let status_code = if e.to_string().contains("already exists") {
-                StatusCode::CONFLICT
+            let error_msg = e.to_string();
+            let (status_code, error_code) = if error_msg.contains("already exists") {
+                (StatusCode::CONFLICT, "SCHEMA_CONFLICT")
+            } else if error_msg.contains("Invalid JSON Schema")
+                || error_msg.contains("Schema definition must be")
+            {
+                (StatusCode::BAD_REQUEST, "INVALID_SCHEMA")
             } else {
-                StatusCode::BAD_REQUEST
+                (StatusCode::BAD_REQUEST, "CREATION_FAILED")
             };
 
-            Err((
-                status_code,
-                Json(ErrorResponse::new("CREATION_FAILED", e.to_string())),
-            ))
+            Err((status_code, Json(ErrorResponse::new(error_code, error_msg))))
         }
     }
 }
 
+/// ## PUT /schemas/{schema_id}
+/// Update an existing schema.
 pub async fn update_schema(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -253,15 +233,7 @@ pub async fn update_schema(
         )
         .await
     {
-        Ok(Some(schema)) => Ok(Json(SchemaResponse {
-            id: schema.id,
-            name: schema.name,
-            version: schema.version,
-            description: schema.description,
-            schema_definition: schema.schema_definition,
-            created_at: schema.created_at.to_rfc3339(),
-            updated_at: schema.updated_at.to_rfc3339(),
-        })),
+        Ok(Some(schema)) => Ok(Json(SchemaResponse::from(schema))),
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
@@ -271,20 +243,23 @@ pub async fn update_schema(
         )),
         Err(e) => {
             let error_msg = e.to_string();
-            let status_code = if error_msg.contains("already exists") {
-                StatusCode::CONFLICT
+            let (status_code, error_code) = if error_msg.contains("already exists") {
+                (StatusCode::CONFLICT, "SCHEMA_CONFLICT")
+            } else if error_msg.contains("Invalid JSON Schema")
+                || error_msg.contains("Schema definition must be")
+            {
+                (StatusCode::BAD_REQUEST, "INVALID_SCHEMA")
             } else {
-                StatusCode::BAD_REQUEST
+                (StatusCode::BAD_REQUEST, "UPDATE_FAILED")
             };
 
-            Err((
-                status_code,
-                Json(ErrorResponse::new("UPDATE_FAILED", error_msg)),
-            ))
+            Err((status_code, Json(ErrorResponse::new(error_code, error_msg))))
         }
     }
 }
 
+/// ## DELETE /schema/{schema_id}
+/// Delete a schema.
 pub async fn delete_schema(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

@@ -18,7 +18,8 @@
   - [4.6 DELETE /schemas/{id}](#46-delete-schemasid)
   - [4.7 DELETE /logs/{id}](#47-delete-logsid)
   - [4.8 GET /health](#48-get-health)
-  - [4.9 Error Handling](#49-error-handling)
+  - [4.9 Request Tracking](#49-request-tracking)
+  - [4.10 Error Handling](#410-error-handling)
 - [5. Non-Functional Requirements](#5-non-functional-requirements)
 - [6. System Architecture](#6-system-architecture)
 - [7. Data Models](#7-data-models)
@@ -129,6 +130,15 @@ Benefits:
 * Returns HTTP 200 with schema object
 * Returns HTTP 404 if schema not found
 
+### 4.2.2 GET /schemas/{schema_name}/{schema_version}
+
+* Retrieves a specific schema by its combined and name and version
+* Path parameters:
+  * `schema_name`: The name of the schema
+  * `schema_version`: The specific version of the schema
+* Returns HTTP 200 with schema object
+* Returns HTTP 404 if schema not found
+
 ### 4.3 POST /logs
 
 * Accepts a JSON object representing a single log entry with schema reference
@@ -167,12 +177,12 @@ Benefits:
 * Query parameters: Any top-level JSONB field for exact-match filtering
 * Example: `GET /logs/schema/temperature-readings?location=desk-thermometer&temperature=22.5`
 
-#### 4.4.2 GET /logs/schema/{schema_name}/{version}
+#### 4.4.2 GET /logs/schema/{schema_name}/{schema_version}
 
 * Get all logs for a specific schema name and version
 * Path parameters:
   * `schema_name`: The name of the schema
-  * `version`: The specific version
+  * `schema_version`: The specific version
 * Query parameters: Any top-level JSONB field for exact-match filtering
 * Example: `GET /logs/schema/web-server-logs/1.0.0?level=ERROR&user_id=user-123`
 
@@ -229,13 +239,70 @@ Benefits:
     }
     ```
 
-### 4.9 Error Handling
+### 4.9 Request Tracking
+
+All API endpoints support request tracking through the `X-Request-ID` header for distributed tracing and debugging.
+
+**Request Header:**
+* `X-Request-ID` (optional): Client-provided request identifier
+  * Format: Any string value (UUID recommended)
+  * If not provided, the server automatically generates a UUID v4
+
+**Response Header:**
+* `X-Request-ID`: Echoed or generated request identifier
+  * Always present in all responses (success or error)
+  * Same value as provided in request, or server-generated if not provided
+
+**Benefits:**
+* **Distributed Tracing**: Track requests across multiple services
+* **Debugging**: Correlate client requests with server logs
+* **Idempotency**: Identify duplicate or retry requests
+* **Audit Trail**: Link requests to specific operations
+
+**Example Usage:**
+
+Request with client-provided ID:
+```bash
+curl -X POST http://localhost:8080/logs \
+  -H "Content-Type: application/json" \
+  -H "X-Request-ID: req-custom-12345" \
+  -d '{"schema_id": "...", "log_data": {...}}'
+```
+
+Response includes the same ID:
+```
+HTTP/1.1 201 Created
+X-Request-ID: req-custom-12345
+Content-Type: application/json
+...
+```
+
+Request without client-provided ID:
+```bash
+curl -X GET http://localhost:8080/schemas
+```
+
+Response includes server-generated UUID:
+```
+HTTP/1.1 200 OK
+X-Request-ID: 550e8400-e29b-41d4-a716-446655440000
+Content-Type: application/json
+...
+```
+
+**Server Logging:**
+* All server logs include the request_id for correlation
+* Log format: `[request_id=<id>] <log message>`
+* Enables quick filtering and debugging of specific requests
+
+### 4.10 Error Handling
 
 * HTTP 400: Invalid JSON, missing required fields, or invalid schema_id
 * HTTP 422: Valid JSON but fails schema validation (for logs) or invalid JSON Schema (for schemas)
 * HTTP 404: Schema not found for the provided schema_id
 * HTTP 500: Internal server errors (database connectivity, etc.)
 * All error responses include descriptive error messages and validation details
+* All error responses include the `X-Request-ID` header for debugging
 
 ## 5. Non-Functional Requirements
 
@@ -399,7 +466,20 @@ CREATE INDEX idx_logs_data_gin ON logs USING GIN (log_data);
 * Request: `application/json`
 * Response: `application/json`
 
-### 8.3 Authentication
+### 8.3 Request Headers
+
+**Standard Headers:**
+* `Content-Type: application/json` (required for POST/PUT requests)
+* `X-Request-ID: <request-id>` (optional, for request tracking)
+  * If not provided, server generates a UUID v4
+  * Returned in response headers for correlation
+
+**Response Headers:**
+* `Content-Type: application/json`
+* `X-Request-ID: <request-id>` (always present)
+  * Echoes client-provided value or contains server-generated UUID
+
+### 8.4 Authentication
 
 * **Current (v1.0.0)**: No authentication implemented
   * All endpoints are publicly accessible
@@ -415,13 +495,13 @@ CREATE INDEX idx_logs_data_gin ON logs USING GIN (log_data);
   * Role-based access control (RBAC)
   * Multi-tenant support
 
-### 8.4 Rate Limiting
+### 8.5 Rate Limiting
 
 * Default: 1000 requests per minute per IP
 * Configurable via environment variables
 * Returns HTTP 429 when exceeded
 
-### 8.5 Schema Validation
+### 8.6 Schema Validation
 
 * All log entries must conform to a pre-registered schema
 * JSON Schema Draft 7 specification is used for validation
@@ -462,8 +542,9 @@ CREATE INDEX idx_logs_data_gin ON logs USING GIN (log_data);
 
 * **Monitoring & Observability**
   * Prometheus metrics endpoint
-  * Structured logging for the service itself
+  * Structured logging for the service itself (currently includes request_id correlation)
   * Health check with detailed component status
+  * Distributed tracing integration (OpenTelemetry)
 
 ### 10.2 Phase 3 Features
 
