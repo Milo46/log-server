@@ -1,5 +1,6 @@
 use axum::{
     http::StatusCode,
+    middleware as axum_middleware,
     response::Json,
     routing::{delete, get, post, put},
     Router,
@@ -9,9 +10,12 @@ use std::sync::Arc;
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
+pub use middleware::request_id::{RequestIdLayer, RequestIdMakeSpan};
+
 pub mod dto;
 pub mod error;
 pub mod handlers;
+pub mod middleware;
 pub mod models;
 pub mod repositories;
 pub mod services;
@@ -30,6 +34,15 @@ pub use services::{LogService, SchemaService};
 pub struct AppState {
     pub schema_service: Arc<SchemaService>,
     pub log_service: Arc<LogService>,
+}
+
+impl AppState {
+    pub fn new(schema_service: Arc<SchemaService>, log_service: Arc<LogService>) -> Self {
+        Self {
+            schema_service,
+            log_service,
+        }
+    }
 }
 
 async fn health_check() -> Result<Json<serde_json::Value>, StatusCode> {
@@ -61,7 +74,8 @@ pub fn create_app(app_state: AppState) -> Router {
         .route("/logs/{id}", delete(delete_log))
         .layer(
             ServiceBuilder::new()
-                .layer(TraceLayer::new_for_http())
+                .layer(axum_middleware::from_fn(RequestIdLayer::middleware))
+                .layer(TraceLayer::new_for_http().make_span_with(RequestIdMakeSpan))
                 .layer(CorsLayer::permissive()),
         )
         .with_state(app_state)
