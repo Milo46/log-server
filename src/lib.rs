@@ -16,7 +16,7 @@ pub mod models;
 pub mod repositories;
 pub mod services;
 
-pub use dto::SchemaResponse;
+pub use dto::{ErrorResponse, SchemaResponse};
 pub use error::{AppError, AppResult};
 pub use handlers::{
     create_log, create_schema, delete_log, delete_schema, get_log_by_id, get_logs,
