@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use crate::{
-    dto::{CreateLogRequest, ErrorResponse, LogResponse},
+    dto::{CreateLogRequest, ErrorResponse, LogEvent, LogResponse},
     AppState,
 };
 
@@ -56,15 +56,7 @@ pub async fn get_logs(
         .await
     {
         Ok(logs) => {
-            let log_responses: Vec<LogResponse> = logs
-                .into_iter()
-                .map(|l| LogResponse {
-                    id: l.id,
-                    schema_id: l.schema_id,
-                    log_data: l.log_data,
-                    created_at: l.created_at.to_rfc3339(),
-                })
-                .collect();
+            let log_responses: Vec<LogResponse> = logs.into_iter().map(LogResponse::from).collect();
 
             Ok(Json(json!({ "logs": log_responses })))
         }
@@ -88,12 +80,7 @@ pub async fn get_log_by_id(
     Path(id): Path<i32>,
 ) -> Result<Json<LogResponse>, (StatusCode, Json<ErrorResponse>)> {
     match state.log_service.get_log_by_id(id).await {
-        Ok(Some(log)) => Ok(Json(LogResponse {
-            id: log.id,
-            schema_id: log.schema_id,
-            log_data: log.log_data,
-            created_at: log.created_at.to_rfc3339(),
-        })),
+        Ok(Some(log)) => Ok(Json(LogResponse::from(log))),
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
@@ -137,15 +124,12 @@ pub async fn create_log(
         .create_log(payload.schema_id, payload.log_data)
         .await
     {
-        Ok(log) => Ok((
-            StatusCode::CREATED,
-            Json(LogResponse {
-                id: log.id,
-                schema_id: log.schema_id,
-                log_data: log.log_data,
-                created_at: log.created_at.to_rfc3339(),
-            }),
-        )),
+        Ok(log) => {
+            let _ = state
+                .log_broadcast
+                .send(LogEvent::created_from(log.clone()));
+            Ok((StatusCode::CREATED, Json(LogResponse::from(log))))
+        }
         Err(e) => {
             let (status_code, error) = if e.to_string().contains("not found") {
                 (StatusCode::NOT_FOUND, "NOT_FOUND")
@@ -166,8 +150,14 @@ pub async fn delete_log(
     State(state): State<AppState>,
     Path(id): Path<i32>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
+    let log = state.log_service.get_log_by_id(id).await;
     match state.log_service.delete_log(id).await {
-        Ok(true) => Ok(StatusCode::NO_CONTENT),
+        Ok(true) => {
+            if let Ok(Some(log)) = log {
+                let _ = state.log_broadcast.send(LogEvent::deleted_from(log));
+            }
+            Ok(StatusCode::NO_CONTENT)
+        }
         Ok(false) => Err((
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
