@@ -4,6 +4,7 @@ use log_server::{
 use std::net::SocketAddr;
 use std::{env, sync::Arc};
 use tokio::net::TcpListener;
+use tokio::sync::broadcast;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -34,9 +35,12 @@ async fn main() -> anyhow::Result<()> {
     ));
     let log_service = Arc::new(LogService::new(log_repository.clone(), schema_repository));
 
+    let (log_broadcast_tx, _) = broadcast::channel(100);
+
     let app_state = AppState {
         schema_service,
         log_service,
+        log_broadcast: log_broadcast_tx,
     };
 
     let app = create_app(app_state);
@@ -44,6 +48,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("📊 Available endpoints:");
     tracing::info!("   GET    /                     - Health check");
     tracing::info!("   GET    /health               - Health check");
+    tracing::info!("   GET    /ws/logs              - WebSocket for live log updates");
     tracing::info!("   GET    /schemas              - Get all schemas");
     tracing::info!("   POST   /schemas              - Create new schema");
     tracing::info!("   GET    /schemas/:id          - Get schema by ID");
