@@ -1,11 +1,13 @@
 [package]
 name = "log-server"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 
 [dependencies]
-axum = "0.8.6"
+axum = { version = "0.8.6", features = ["ws"] }
+axum-extra = { version = "0.10.0", features = ["typed-header"] }
 tokio = { version = "1.0", features = ["full"] }
+tokio-stream = "0.1"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tower = "0.5.2"
@@ -18,7 +20,9 @@ uuid = { version = "1.0", features = ["serde", "v4"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 jsonschema = "0.33.0"
+futures-util = "0.3"
 
 [dev-dependencies]
 reqwest = { version = "0.11", features = ["json"] }
 futures = "0.3"
+tokio-tungstenite = "0.21"

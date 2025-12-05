@@ -3,6 +3,7 @@ mod common;
 
 mod logs;
 mod schemas;
+mod websockets;
 
 mod health {
     use crate::common::TestContext;

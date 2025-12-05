@@ -18,6 +18,8 @@ pub use schema_dto::{
 pub use log_dto::{
     // Requests
     CreateLogRequest,
+    // WebSocket Events
+    LogEvent,
     // Responses
     LogResponse,
 };

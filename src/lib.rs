@@ -7,6 +7,7 @@ use axum::{
 };
 use serde_json::json;
 use std::sync::Arc;
+use tokio::sync::broadcast;
 use tower::ServiceBuilder;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
@@ -20,11 +21,12 @@ pub mod models;
 pub mod repositories;
 pub mod services;
 
-pub use dto::{ErrorResponse, SchemaResponse};
+pub use dto::{ErrorResponse, LogEvent, SchemaResponse};
 pub use error::{AppError, AppResult};
 pub use handlers::{
     create_log, create_schema, delete_log, delete_schema, get_log_by_id, get_logs,
     get_logs_default, get_schema_by_id, get_schema_by_name_and_version, get_schemas, update_schema,
+    ws_handler,
 };
 pub use models::{Log, Schema};
 pub use repositories::{LogRepository, SchemaRepository};
@@ -34,13 +36,19 @@ pub use services::{LogService, SchemaService};
 pub struct AppState {
     pub schema_service: Arc<SchemaService>,
     pub log_service: Arc<LogService>,
+    pub log_broadcast: broadcast::Sender<LogEvent>,
 }
 
 impl AppState {
-    pub fn new(schema_service: Arc<SchemaService>, log_service: Arc<LogService>) -> Self {
+    pub fn new(
+        schema_service: Arc<SchemaService>,
+        log_service: Arc<LogService>,
+        log_broadcast: broadcast::Sender<LogEvent>,
+    ) -> Self {
         Self {
             schema_service,
             log_service,
+            log_broadcast,
         }
     }
 }
@@ -58,6 +66,7 @@ pub fn create_app(app_state: AppState) -> Router {
     Router::new()
         .route("/", get(health_check))
         .route("/health", get(health_check))
+        .route("/ws/logs", get(ws_handler))
         .route("/schemas", get(get_schemas))
         .route("/schemas", post(create_schema))
         .route("/schemas/{id}", get(get_schema_by_id))
@@ -72,11 +81,11 @@ pub fn create_app(app_state: AppState) -> Router {
         .route("/logs/schema/{schema_name}/{schema_version}", get(get_logs))
         .route("/logs/{id}", get(get_log_by_id))
         .route("/logs/{id}", delete(delete_log))
+        .with_state(app_state)
         .layer(
             ServiceBuilder::new()
                 .layer(axum_middleware::from_fn(RequestIdLayer::middleware))
                 .layer(TraceLayer::new_for_http().make_span_with(RequestIdMakeSpan))
                 .layer(CorsLayer::permissive()),
         )
-        .with_state(app_state)
 }

@@ -13,6 +13,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [1.1.0] - 2025-12-05
+
+### Added
+- WebSocket endpoint for real-time log event streaming
+  - `GET /ws/logs` - WebSocket connection for live log updates
+  - Optional `schema_id` query parameter to filter events by schema
+  - Broadcasts `created` events when logs are created
+  - Broadcasts `deleted` events when logs are deleted
+- Comprehensive WebSocket integration tests
+  - Connection tests (successful connections, schema validation, error handling)
+  - Event broadcasting tests (created/deleted events, schema filtering)
+  - Multi-client tests (simultaneous connections, event distribution)
+- Python WebSocket client example in `examples/websocket-events-client/`
+- WebSocket documentation in README.md with usage examples
+- Event-driven architecture using `tokio::sync::broadcast` channel
+
+### Changed
+- Updated dependencies to support WebSocket functionality
+  - Added `futures-util` for WebSocket stream handling
+  - Added `tokio-tungstenite` as dev dependency for testing
+
 ## [1.0.0] - 2025-11-26
 
 ### Added
