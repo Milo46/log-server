@@ -143,6 +143,52 @@ Response:
 }
 ```
 
+## Listening to events via WebSocket
+
+In order to get live updates on the logs, you have to somehow get
+notified by the server and you can achieve it by connecting to the
+WebSocket endpoint of the application.
+
+```bash
+# If you want to listen to all logs
+websocat "ws://localhost:8081/ws/logs"
+
+# And if you want to listen to only a specific schema
+websocat "ws://localhost:8081/ws/logs?schema_id=0a9dadf1-fd1b-4727-88d5-98aad5ce70a3"
+```
+
+**Note**: If you provide an invalid or non-existent `schema_id`,
+the WebSocket connection will fail with a `404 Not Found` error:
+```bash
+websocat: WebSocketError: Received unexpected status code (404 Not Found)
+```
+
+Make sure the schema exists before attempting to connect.
+
+The following events are currently supported:
+
+### 1. Log creation message
+```json
+{
+    "event_type": "created",
+    "id": 5826,
+    "schema_id": "0a9dadf1-fd1b-4727-88d5-98aad5ce70a3",
+    "log_data": {
+        "message":"Hello World from the working WebSocket connection!"
+    },
+    "created_at": "2025-12-05T11:13:36.361797+00:00"
+}
+```
+
+### 2. Log deletion message
+```json
+{
+    "event_type": "deleted",
+    "id": 5826,
+    "schema_id": "0a9dadf1-fd1b-4727-88d5-98aad5ce70a3"
+}
+```
+
 ## Features
 ## Configuration
 ## License

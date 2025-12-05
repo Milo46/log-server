@@ -3,13 +3,16 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         Query, State,
     },
+    http::StatusCode,
     response::Response,
+    Json,
 };
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::AppState;
+use crate::dto::ErrorResponse;
 
 #[derive(Debug, Deserialize)]
 pub struct WebSocketQuery {
@@ -20,8 +23,33 @@ pub async fn ws_handler(
     State(state): State<AppState>,
     Query(query): Query<WebSocketQuery>,
     ws: WebSocketUpgrade,
-) -> Response {
-    ws.on_upgrade(move |socket| handle_socket(socket, state, query))
+) -> Result<Response, (StatusCode, Json<ErrorResponse>)> {
+    if let Some(schema_id) = query.schema_id {
+        match state.schema_service.get_schema_by_id(schema_id).await {
+            Ok(None) => {
+                return Err((
+                    StatusCode::NOT_FOUND,
+                    Json(ErrorResponse::new(
+                        "SCHEMA_NOT_FOUND",
+                        format!("Schema with id '{}' not found", schema_id),
+                    )),
+                ));
+            }
+            Err(e) => {
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse::new("INTERNAL_ERROR", e.to_string())),
+                ));
+            }
+            Ok(Some(_)) => {
+                tracing::debug!("WebSocket connection requested for schema_id: {}", schema_id);
+            }
+        }
+    } else {
+        tracing::debug!("WebSocket connection requested for all schemas");
+    }
+
+    Ok(ws.on_upgrade(move |socket| handle_socket(socket, state, query)))
 }
 
 async fn handle_socket(socket: WebSocket, state: AppState, query: WebSocketQuery) {
